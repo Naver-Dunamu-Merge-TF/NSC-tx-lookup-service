@@ -45,10 +45,30 @@ OLTP DB → Kafka → [Sync Consumer] → Serving DB → [Admin API] → 관리�
 
 ---
 
-## 기술 스택
+### 데이터 흐름
 
-- Python, FastAPI
-- PostgreSQL
-- Kafka
+```mermaid
+sequenceDiagram
+  participant Admin as Admin User
+  participant UI as Admin UI
+  participant API as Admin API
+  participant DB as Backoffice DB
+  participant BUS as Kafka/Event Hub
+  participant C as Sync Consumer
+
+  Note over BUS,C: Continuous sync (near real-time)
+  BUS->>C: LedgerEntryUpserted / PaymentOrderUpserted
+  C->>DB: UPSERT (idempotent)
+
+  Admin->>UI: Search tx_id
+  UI->>API: GET /admin/tx/{tx_id}
+  API->>DB: SELECT ledger_entries WHERE tx_id=...
+  alt related_id exists
+    API->>DB: SELECT pairs/peer by related_id
+  end
+  DB-->>API: tx trace (+pairing_status)
+  API-->>UI: Response (+data_lag_sec)
+  UI-->>Admin: Render result
+```
 
 
