@@ -42,13 +42,13 @@
 - [x] Commit
 
 ## Phase 5 — Admin API Read-only MVP
-- [ ] FastAPI 앱 스켈레톤 및 `GET /admin/tx/{tx_id}` 구현
-- [ ] 페어링 불완전 처리: `pairing_status`, `paired_tx_id`, `data_lag_sec` 계산
-- [ ] `tx_id` 미존재 시 404 응답 정책 반영
-- [ ] `related_type` 기본값(`PAYMENT_ORDER`/`UNKNOWN`) 및 `status_group=UNKNOWN` 기본값 처리
-- [ ] (권장) `GET /admin/payment-orders/{order_id}` / `GET /admin/wallets/{wallet_id}/tx` 초안
-- [ ] DB 쿼리 경로 최적화(인덱스 사용 확인, N+1 제거)
-- [ ] (Local) API ↔ DB ↔ Consumer E2E 스모크 테스트
+- [x] FastAPI 앱 스켈레톤 및 `GET /admin/tx/{tx_id}` 구현
+- [x] 페어링 불완전 처리: `pairing_status`, `paired_tx_id`, `data_lag_sec` 계산
+- [x] `tx_id` 미존재 시 404 응답 정책 반영
+- [x] `related_type` 기본값(`PAYMENT_ORDER`/`UNKNOWN`) 및 `status_group=UNKNOWN` 기본값 처리
+- [ ] (권장) `GET /admin/payment-orders/{order_id}` / `GET /admin/wallets/{wallet_id}/tx` 초안 (Phase 6 이후 범위 재확인)
+- [x] DB 쿼리 경로 최적화(인덱스 사용 확인, N+1 제거)
+- [x] (Local) API ↔ DB ↔ Consumer E2E 스모크 테스트
 - [ ] Commit
 
 ## Phase 6 — 인증/인가 + 감사 로그
@@ -120,10 +120,10 @@
 - [x] out-of-order 테스트 통과
 
 ### Phase 5
-- [ ] `GET /admin/tx/{tx_id}` 응답 스키마 확정
-- [ ] `pairing_status`/`data_lag_sec` 계산 확인
-- [ ] 404/기본값(`related_type`, `status_group`) 처리 확인
-- [ ] (Local) E2E 스모크 테스트 통과
+- [x] `GET /admin/tx/{tx_id}` 응답 스키마 확정
+- [x] `pairing_status`/`data_lag_sec` 계산 확인
+- [x] 404/기본값(`related_type`, `status_group`) 처리 확인
+- [x] (Local) E2E 스모크 테스트 통과
 
 ### Phase 6
 - [ ] RBAC 적용 확인

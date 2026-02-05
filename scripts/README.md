@@ -23,3 +23,9 @@ python scripts/publish_sample_events.py
 ```
 python scripts/replay_dlq.py
 ```
+
+## Admin API smoke test
+
+```
+python scripts/smoke_admin_tx.py
+```
