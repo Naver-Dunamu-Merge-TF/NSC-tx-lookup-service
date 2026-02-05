@@ -52,10 +52,10 @@
 - [x] Commit
 
 ## Phase 6 — 인증/인가 + 감사 로그
-- [ ] OIDC/JWT 검증 미들웨어 도입 및 RBAC(`ADMIN_READ`, `ADMIN_AUDIT`) 적용
+- [x] OIDC/JWT 검증 미들웨어 도입 및 RBAC(`ADMIN_READ`, `ADMIN_AUDIT`) 적용
 - [x] 감사 로그 스키마/저장 경로 확정(테이블 or 로그 집계)
 - [x] 감사 로그 필드(`who/when/what/result/ip/ua`) 일관화
-- [ ] 민감 필드 최소화/마스킹 정책 추가
+- [x] 민감 필드 최소화/마스킹 정책 추가
 - [ ] Commit
 
 ## Phase 7 — 관측/운영(SLO) 강화
@@ -126,9 +126,9 @@
 - [x] (Local) E2E 스모크 테스트 통과
 
 ### Phase 6
-- [ ] RBAC 적용 확인
+- [x] RBAC 적용 확인
 - [x] 감사 로그 저장/집계 확인
-- [ ] 민감 필드 최소화 정책 반영
+- [x] 민감 필드 최소화 정책 반영
 
 ### Phase 7
 - [ ] API/Consumer 핵심 지표 노출 확인

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import time
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 
 from src.api.audit import build_audit_fields, extract_actor
+from src.api.auth import require_admin_read
 from src.api.constants import ADMIN_TX_LOOKUP
 from src.api.schemas import AdminTxResponse
 from src.api.service import build_admin_tx_response
@@ -16,7 +17,11 @@ app = FastAPI(title="Backoffice Admin API")
 
 
 @app.get("/admin/tx/{tx_id}", response_model=AdminTxResponse)
-def get_admin_tx(tx_id: str, request: Request) -> AdminTxResponse:
+def get_admin_tx(
+    tx_id: str,
+    request: Request,
+    _actor=Depends(require_admin_read),
+) -> AdminTxResponse:
     start = time.monotonic()
     actor = extract_actor(request)
     result = "FOUND"

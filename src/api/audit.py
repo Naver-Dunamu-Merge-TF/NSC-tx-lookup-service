@@ -6,6 +6,9 @@ from typing import Any
 
 from fastapi import Request
 
+from src.api.auth import mask_query
+from src.common.config import load_config
+
 
 @dataclass(frozen=True)
 class ActorContext:
@@ -14,8 +17,14 @@ class ActorContext:
 
 
 def extract_actor(request: Request) -> ActorContext:
-    actor_id = request.headers.get("X-Actor-Id")
-    actor_roles = request.headers.get("X-Actor-Roles")
+    actor_id = getattr(request.state, "actor_id", None) or request.headers.get(
+        "X-Actor-Id"
+    )
+    roles_from_state = getattr(request.state, "actor_roles", None)
+    if roles_from_state:
+        actor_roles = ",".join(roles_from_state)
+    else:
+        actor_roles = request.headers.get("X-Actor-Roles")
     return ActorContext(actor_id=actor_id, actor_roles=actor_roles)
 
 
@@ -31,7 +40,13 @@ def build_audit_fields(
     duration_ms: int | None,
 ) -> dict[str, Any]:
     client = request.client
-    query = request.url.query
+    config = load_config()
+    mask_keys = [
+        key.strip()
+        for key in config.audit_mask_query_keys.split(",")
+        if key.strip()
+    ]
+    query = mask_query(request.url.query, mask_keys)
 
     return {
         "actor_id": actor.actor_id,
