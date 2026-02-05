@@ -162,3 +162,10 @@ Key references
 | `.specs/backoffice_db_admin_api.md` | DB + API design |
 | `.specs/backoffice_data_project.md` | Sync specs |
 | `.specs/database_schema` | OLTP schema |
+
+Decision hygiene
+----------------
+
+- If any part of the implementation is unclear or handled as an assumption,
+  add it to `.specs/decision_open_items.md` immediately and update its status
+  once a decision is made.
