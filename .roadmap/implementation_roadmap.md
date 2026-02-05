@@ -14,11 +14,11 @@
 - [x] Commit
 
 ## Phase 2 — Backoffice DB 스키마 + 마이그레이션
-- [ ] `bo.ledger_entries`, `bo.payment_orders`, `bo.payment_ledger_pairs` 스키마 정의 및 인덱스 설계
-- [ ] Alembic 마이그레이션 초안 생성 및 롤백 규칙 확정
-- [ ] 공통 DB 접근 레이어(연결 풀/세션) 및 upsert 헬퍼 구축
-- [ ] (Local) 로컬 DB 마이그레이션 적용 및 샘플 데이터 seed 스크립트 추가
-- [ ] (옵션) `bo.admin_tx_search` 뷰/테이블 필요성 결정 및 설계 초안
+- [x] `bo.ledger_entries`, `bo.payment_orders`, `bo.payment_ledger_pairs` 스키마 정의 및 인덱스 설계
+- [x] Alembic 마이그레이션 초안 생성 및 롤백 규칙 확정
+- [x] 공통 DB 접근 레이어(연결 풀/세션) 및 upsert 헬퍼 구축
+- [x] (Local) 로컬 DB 마이그레이션 적용 및 샘플 데이터 seed 스크립트 추가
+- [x] (옵션) `bo.admin_tx_search` 뷰/테이블 필요성 결정 및 설계 초안 (Phase 5 API 쿼리 패턴 확정 후 재검토)
 - [ ] Commit
 
 ## Phase 3 — 초기 적재(Backfill) + Sync Consumer 기본 동작
@@ -99,11 +99,11 @@
 - [x] 환경 분리 규칙 문서화
 
 ### Phase 2
-- [ ] Backoffice DB 스키마/인덱스 확정
-- [ ] Alembic 마이그레이션 적용 확인
-- [ ] upsert 헬퍼/DB 레이어 동작 확인
-- [ ] (Local) 샘플 데이터 seed 확인
-- [ ] (옵션) `bo.admin_tx_search` 설계 결정
+- [x] Backoffice DB 스키마/인덱스 확정
+- [x] Alembic 마이그레이션 적용 확인
+- [x] upsert 헬퍼/DB 레이어 동작 확인
+- [x] (Local) 샘플 데이터 seed 확인
+- [x] (옵션) `bo.admin_tx_search` 설계 결정
 
 ### Phase 3
 - [ ] backfill 스크립트/경로 검증
