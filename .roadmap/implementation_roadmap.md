@@ -35,10 +35,10 @@
 - [x] Commit
 
 ## Phase 4 — 페어링 테이블 + 품질 지표
-- [ ] `related_id` 기준 페어링 계산(부분 완성 허용) 로직 구현
-- [ ] `bo.payment_ledger_pairs` 업데이트/보정 정책 정의
-- [ ] `pair_incomplete` 비율/지연 시간 산출 지표 추가
-- [ ] out-of-order 이벤트에 대한 페어링 안정성 테스트
+- [x] `related_id` 기준 페어링 계산(부분 완성 허용) 로직 구현
+- [x] `bo.payment_ledger_pairs` 업데이트/보정 정책 정의
+- [x] `pair_incomplete` 비율/지연 시간 산출 지표 추가
+- [x] out-of-order 이벤트에 대한 페어링 안정성 테스트
 - [ ] Commit
 
 ## Phase 5 — Admin API Read-only MVP
@@ -115,9 +115,9 @@
 - [x] 토픽/필수 필드 체크리스트 검증
 
 ### Phase 4
-- [ ] 페어링 부분/완성 케이스 동작 확인
-- [ ] `pair_incomplete` 지표 산출 확인
-- [ ] out-of-order 테스트 통과
+- [x] 페어링 부분/완성 케이스 동작 확인
+- [x] `pair_incomplete` 지표 산출 확인
+- [x] out-of-order 테스트 통과
 
 ### Phase 5
 - [ ] `GET /admin/tx/{tx_id}` 응답 스키마 확정

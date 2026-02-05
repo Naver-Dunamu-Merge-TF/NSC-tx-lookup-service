@@ -20,6 +20,7 @@ class AppConfig:
     payment_order_topic: str
     dlq_path: str
     consumer_poll_timeout_ms: int
+    consumer_offset_reset: str
     db_pool_size: int
     db_max_overflow: int
     db_pool_timeout: int
@@ -64,6 +65,9 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
         ),
         dlq_path=_get_env(source, "DLQ_PATH", "./dlq/failed_events.jsonl"),
         consumer_poll_timeout_ms=_get_int(source, "CONSUMER_POLL_TIMEOUT_MS", 1000),
+        consumer_offset_reset=_get_env(
+            source, "CONSUMER_OFFSET_RESET", "earliest"
+        ),
         db_pool_size=_get_int(source, "DB_POOL_SIZE", 5),
         db_max_overflow=_get_int(source, "DB_MAX_OVERFLOW", 10),
         db_pool_timeout=_get_int(source, "DB_POOL_TIMEOUT", 30),

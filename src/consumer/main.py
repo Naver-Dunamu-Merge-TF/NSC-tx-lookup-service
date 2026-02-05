@@ -18,7 +18,7 @@ from src.consumer.events import (
     LedgerEntryUpserted,
     PaymentOrderUpserted,
 )
-from src.consumer.metrics import VersionMissingCounter
+from src.consumer.metrics import PairingMetrics, VersionMissingCounter
 from src.consumer.processor import upsert_ledger_entry, upsert_payment_order
 from src.db.session import session_scope
 
@@ -50,7 +50,7 @@ def _build_consumer() -> Consumer:
             "bootstrap.servers": config.kafka_brokers,
             "group.id": config.consumer_group_id,
             "enable.auto.commit": False,
-            "auto.offset.reset": "earliest",
+            "auto.offset.reset": config.consumer_offset_reset,
         }
     )
 
@@ -59,13 +59,20 @@ def _handle_payload(
     topic: str,
     payload: dict[str, Any],
     counter: VersionMissingCounter,
+    pairing_metrics: PairingMetrics,
 ) -> None:
     config = load_config()
     missing_version = False
     with session_scope() as session:
         if topic == config.ledger_topic:
             event = LedgerEntryUpserted.from_dict(payload)
-            missing_version = upsert_ledger_entry(session, event)
+            missing_version, pairing_snapshot = upsert_ledger_entry(session, event)
+            if pairing_snapshot:
+                if pairing_metrics.record(
+                    pairing_snapshot.complete,
+                    pairing_snapshot.incomplete_age_sec,
+                ):
+                    logger.info(pairing_metrics.summary())
         elif topic == config.payment_order_topic:
             event = PaymentOrderUpserted.from_dict(payload)
             missing_version = upsert_payment_order(session, event)
@@ -86,6 +93,7 @@ def run_consumer(
     consumer.subscribe(topics)
 
     counter = VersionMissingCounter()
+    pairing_metrics = PairingMetrics()
     processed = 0
     last_message_at = time.monotonic()
 
@@ -117,7 +125,7 @@ def run_consumer(
 
             try:
                 payload = json.loads(msg.value() or b"{}")
-                _handle_payload(msg.topic(), payload, counter)
+                _handle_payload(msg.topic(), payload, counter, pairing_metrics)
                 consumer.commit(msg)
                 processed += 1
                 last_message_at = time.monotonic()
@@ -149,6 +157,7 @@ def run_backfill(
     until: datetime | None,
 ) -> None:
     counter = VersionMissingCounter()
+    pairing_metrics = PairingMetrics()
 
     def _within_range(value: datetime) -> bool:
         if since and value < since:
@@ -164,9 +173,15 @@ def run_backfill(
                 if not _within_range(event.event_time):
                     continue
                 with session_scope() as session:
-                    missing = upsert_ledger_entry(session, event)
+                    missing, pairing_snapshot = upsert_ledger_entry(session, event)
                 if counter.record(missing):
                     logger.info(counter.summary())
+                if pairing_snapshot:
+                    if pairing_metrics.record(
+                        pairing_snapshot.complete,
+                        pairing_snapshot.incomplete_age_sec,
+                    ):
+                        logger.info(pairing_metrics.summary())
             except Exception as exc:
                 write_dlq(
                     load_config().dlq_path,

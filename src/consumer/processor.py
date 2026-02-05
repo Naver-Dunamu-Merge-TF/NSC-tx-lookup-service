@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from src.consumer.events import LedgerEntryUpserted, PaymentOrderUpserted
+from src.consumer.pairing import PairingSnapshot, update_pairing_for_related_id
 from src.db.models import LedgerEntry, PaymentLedgerPair, PaymentOrder
 from src.db.upsert import latest_wins_upsert
 
@@ -13,7 +14,9 @@ def _ingested_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def upsert_ledger_entry(session: Session, event: LedgerEntryUpserted) -> bool:
+def upsert_ledger_entry(
+    session: Session, event: LedgerEntryUpserted
+) -> tuple[bool, PairingSnapshot | None]:
     ingested_at = _ingested_now()
     values = {
         "tx_id": event.tx_id,
@@ -32,7 +35,12 @@ def upsert_ledger_entry(session: Session, event: LedgerEntryUpserted) -> bool:
     stmt = latest_wins_upsert(LedgerEntry.__table__, values, ["tx_id"])
     session.execute(stmt)
 
-    return event.updated_at is None and event.source_version is None
+    missing_version = event.updated_at is None and event.source_version is None
+    pairing_snapshot = None
+    if event.related_id:
+        pairing_snapshot = update_pairing_for_related_id(session, event.related_id)
+
+    return missing_version, pairing_snapshot
 
 
 def upsert_payment_order(session: Session, event: PaymentOrderUpserted) -> bool:

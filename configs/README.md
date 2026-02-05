@@ -17,6 +17,7 @@ Required variables (current skeleton)
 - `PAYMENT_ORDER_TOPIC`: payment order topic
 - `DLQ_PATH`: local DLQ file path
 - `CONSUMER_POLL_TIMEOUT_MS`: Kafka poll timeout in milliseconds
+- `CONSUMER_OFFSET_RESET`: Kafka offset reset policy (`earliest`/`latest`)
 - `DB_POOL_SIZE`: SQLAlchemy pool size (default `5`)
 - `DB_MAX_OVERFLOW`: extra overflow connections (default `10`)
 - `DB_POOL_TIMEOUT`: seconds to wait for a connection (default `30`)
