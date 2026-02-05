@@ -7,10 +7,10 @@
 - `README.md`
 
 ## Phase 1 — 리포지토리 골격 + 공통 기반
-- [ ] `src/api`, `src/consumer`, `src/db`, `src/common`, `tests/unit`, `tests/integration`, `migrations`, `configs`, `docker` 디렉터리 생성
-- [ ] 공통 설정 로딩(환경변수/시크릿) 스켈레톤 및 기본 로깅 포맷 확정
-- [ ] (Local) `docker compose` 스켈레톤: PostgreSQL + Kafka(or Event Hub emulator 대체) 부팅
-- [ ] 개발/운영 환경 구분(`local/dev/prod`) 기본 규칙 문서화
+- [x] `src/api`, `src/consumer`, `src/db`, `src/common`, `tests/unit`, `tests/integration`, `migrations`, `configs`, `docker` 디렉터리 생성
+- [x] 공통 설정 로딩(환경변수/시크릿) 스켈레톤 및 기본 로깅 포맷 확정
+- [x] (Local) `docker compose` 스켈레톤: PostgreSQL + Kafka(or Event Hub emulator 대체) 부팅
+- [x] 개발/운영 환경 구분(`local/dev/prod`) 기본 규칙 문서화
 - [ ] Commit
 
 ## Phase 2 — Backoffice DB 스키마 + 마이그레이션
@@ -93,10 +93,10 @@
 ## Phase별 산출물 체크리스트
 
 ### Phase 1
-- [ ] 디렉터리 골격 생성 완료
-- [ ] 공통 설정/로깅 스켈레톤 확정
-- [ ] (Local) Docker compose로 DB/브로커 기동 확인
-- [ ] 환경 분리 규칙 문서화
+- [x] 디렉터리 골격 생성 완료
+- [x] 공통 설정/로깅 스켈레톤 확정
+- [x] (Local) Docker compose로 DB/브로커 기동 확인
+- [x] 환경 분리 규칙 문서화
 
 ### Phase 2
 - [ ] Backoffice DB 스키마/인덱스 확정

@@ -71,4 +71,11 @@ sequenceDiagram
   UI-->>Admin: Render result
 ```
 
+---
+
+## Local development
+
+1. Start dependencies: `docker compose up -d`
+1. Export environment variables (see `configs/env.example` and `configs/README.md`)
+1. Run API or consumer locally once implemented
 
