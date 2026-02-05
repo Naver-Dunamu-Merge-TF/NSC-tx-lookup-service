@@ -51,3 +51,9 @@ def cleanup_test_rows(db_engine):
             ),
             {"prefix": f"{prefix}%"},
         )
+        conn.execute(
+            text(
+                "delete from bo.admin_audit_logs where resource_id like :prefix"
+            ),
+            {"prefix": f"{prefix}%"},
+        )

@@ -88,6 +88,36 @@ Code patterns
 See `.specs/backoffice_data_project.md` for sync and pairing details.
 
 
+Testing strategy
+----------------
+
+**Test levels:**
+ - **Unit**: pytest + mock (single function/class logic)
+ - **Integration**: pytest + Docker DB (Repository + DB interaction)
+ - **E2E**: Docker Compose (API → Consumer → DB full flow)
+
+**Test case types:**
+ - **Happy path**: Normal input → expected output
+ - **Edge case**: Boundary values, empty data, NULL handling
+ - **Error case**: Invalid input, auth failure → appropriate error response
+ - **Idempotency**: Re-run same request → same result
+
+**Test scope by component:**
+ - `src/api/`: FastAPI TestClient for endpoint tests
+ - `src/consumer/`: Message processing logic + pairing logic
+ - `src/db/`: Repository CRUD + upsert idempotency
+
+**Quality gates:**
+ - Unit coverage: ≥ 80% (L2 verification)
+ - PR gate: Unit + Integration pass (L1)
+ - Merge gate: E2E smoke test pass (L3)
+
+**Test file naming:**
+ - Unit: `tests/unit/test_<module>.py`
+ - Integration: `tests/integration/test_<component>_integration.py`
+ - E2E: `tests/e2e/test_<scenario>_e2e.py`
+
+
 Verification policy
 -------------------
 
