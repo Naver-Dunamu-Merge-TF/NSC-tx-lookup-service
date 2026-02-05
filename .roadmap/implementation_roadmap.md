@@ -49,7 +49,7 @@
 - [ ] (권장) `GET /admin/payment-orders/{order_id}` / `GET /admin/wallets/{wallet_id}/tx` 초안 (Phase 6 이후 범위 재확인)
 - [x] DB 쿼리 경로 최적화(인덱스 사용 확인, N+1 제거)
 - [x] (Local) API ↔ DB ↔ Consumer E2E 스모크 테스트
-- [ ] Commit
+- [x] Commit
 
 ## Phase 6 — 인증/인가 + 감사 로그
 - [ ] OIDC/JWT 검증 미들웨어 도입 및 RBAC(`ADMIN_READ`, `ADMIN_AUDIT`) 적용
