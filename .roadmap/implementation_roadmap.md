@@ -18,15 +18,20 @@
 - [ ] Alembic 마이그레이션 초안 생성 및 롤백 규칙 확정
 - [ ] 공통 DB 접근 레이어(연결 풀/세션) 및 upsert 헬퍼 구축
 - [ ] (Local) 로컬 DB 마이그레이션 적용 및 샘플 데이터 seed 스크립트 추가
+- [ ] (옵션) `bo.admin_tx_search` 뷰/테이블 필요성 결정 및 설계 초안
 - [ ] Commit
 
-## Phase 3 — Sync Consumer 기본 동작(증분 동기화)
+## Phase 3 — 초기 적재(Backfill) + Sync Consumer 기본 동작
+- [ ] 초기 적재(backfill) 범위/기간 정의 및 스크립트 설계
+- [ ] backfill 실행 경로 구현(덤프 적재 또는 배치 모드)
 - [ ] 이벤트 스키마 모델(`LedgerEntryUpserted`, `PaymentOrderUpserted`) 정의
 - [ ] Kafka consumer 루프 및 역직렬화/검증 파이프라인 구현
 - [ ] 멱등 upsert 로직 구현(`tx_id`, `order_id`) + `updated_at/version` 최신판 정책
+- [ ] `updated_at/version` 부재 시 `ingested_at` 기준 LWW 정책 적용
 - [ ] `ingested_at` 기록 및 `version_missing_cnt` 지표 산출
 - [ ] DLQ 기본 처리(파일/토픽/테이블 중 1개 선택) 스켈레톤
 - [ ] (Local) 샘플 이벤트 퍼블리셔 및 재처리 시나리오 테스트
+- [ ] 통합 테스트용 토픽/필수 필드 체크리스트 검증 및 샘플 메시지 확보
 - [ ] Commit
 
 ## Phase 4 — 페어링 테이블 + 품질 지표
@@ -39,6 +44,8 @@
 ## Phase 5 — Admin API Read-only MVP
 - [ ] FastAPI 앱 스켈레톤 및 `GET /admin/tx/{tx_id}` 구현
 - [ ] 페어링 불완전 처리: `pairing_status`, `paired_tx_id`, `data_lag_sec` 계산
+- [ ] `tx_id` 미존재 시 404 응답 정책 반영
+- [ ] `related_type` 기본값(`PAYMENT_ORDER`/`UNKNOWN`) 및 `status_group=UNKNOWN` 기본값 처리
 - [ ] (권장) `GET /admin/payment-orders/{order_id}` / `GET /admin/wallets/{wallet_id}/tx` 초안
 - [ ] DB 쿼리 경로 최적화(인덱스 사용 확인, N+1 제거)
 - [ ] (Local) API ↔ DB ↔ Consumer E2E 스모크 테스트
@@ -56,6 +63,7 @@
 - [ ] Consumer 지표(lag, DLQ rate, freshness) 계측
 - [ ] 트레이싱/코릴레이션 ID 전파
 - [ ] (Local) 메트릭 노출(예: /metrics) 및 대시보드 초안
+- [ ] SLO 기준 명시: API p95 200ms, 데이터 신선도 p95 5s, 알림 임계치 정의
 - [ ] Commit
 
 ## Phase 8 — 클라우드 인프라 준비(Azure)
@@ -64,6 +72,7 @@
 - [ ] (Cloud) ACR + Container Apps/AKS 배포 기본값 확정
 - [ ] (Cloud) Key Vault + Managed Identity로 시크릿 전달
 - [ ] (Cloud) App Insights/Log Analytics 연동
+- [ ] (Cloud) Backoffice DB 접근 제어(네트워크/계정) 정책 확정
 - [ ] Commit
 
 ## Phase 9 — 배포/운영 파이프라인 + 테스트 체계
@@ -71,6 +80,7 @@
 - [ ] CD: 이미지 빌드/스캔 → DB 마이그레이션 → 배포 → 스모크 테스트
 - [ ] backfill/재처리(runbook) 및 DLQ replay 절차 문서화
 - [ ] 장애/데이터 불일치 대응 체크리스트 정리
+- [ ] 토픽 스키마/계약 테스트를 CI에 연결
 - [ ] Commit
 
 ## Phase 10 — 안정화 및 문서화
@@ -93,12 +103,16 @@
 - [ ] Alembic 마이그레이션 적용 확인
 - [ ] upsert 헬퍼/DB 레이어 동작 확인
 - [ ] (Local) 샘플 데이터 seed 확인
+- [ ] (옵션) `bo.admin_tx_search` 설계 결정
 
 ### Phase 3
+- [ ] backfill 스크립트/경로 검증
 - [ ] Consumer 기본 동작(consume→upsert) 확인
 - [ ] 최신판 정책(`updated_at/version`) 적용 확인
+- [ ] `ingested_at` LWW 정책 적용 확인
 - [ ] `ingested_at` 기록/지표 산출 확인
 - [ ] DLQ 스켈레톤 동작 확인
+- [ ] 토픽/필수 필드 체크리스트 검증
 
 ### Phase 4
 - [ ] 페어링 부분/완성 케이스 동작 확인
@@ -108,6 +122,7 @@
 ### Phase 5
 - [ ] `GET /admin/tx/{tx_id}` 응답 스키마 확정
 - [ ] `pairing_status`/`data_lag_sec` 계산 확인
+- [ ] 404/기본값(`related_type`, `status_group`) 처리 확인
 - [ ] (Local) E2E 스모크 테스트 통과
 
 ### Phase 6
@@ -119,6 +134,7 @@
 - [ ] API/Consumer 핵심 지표 노출 확인
 - [ ] 트레이싱/코릴레이션 ID 전파 확인
 - [ ] (Local) 대시보드 초안 확인
+- [ ] SLO 기준 및 알림 임계치 확정
 
 ### Phase 8
 - [ ] (Cloud) DB/브로커/컴퓨트 리소스 생성 확인
@@ -129,6 +145,7 @@
 - [ ] CI/CD 파이프라인 동작 확인
 - [ ] 배포 후 스모크 테스트 자동화 확인
 - [ ] 재처리/복구 절차 문서화 완료
+- [ ] 토픽 스키마/계약 테스트 CI 연동
 
 ### Phase 10
 - [ ] 성능/안정화 조치 기록
