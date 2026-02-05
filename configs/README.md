@@ -31,5 +31,12 @@ Required variables (current skeleton)
 - `DB_POOL_TIMEOUT`: seconds to wait for a connection (default `30`)
 - `DB_POOL_RECYCLE`: seconds before recycling a connection (default `1800`)
 
+OIDC provider decision
+- Provider: Microsoft Entra ID (Azure AD)
+- Discovery: `https://login.microsoftonline.com/{tenant-id}/v2.0/.well-known/openid-configuration`
+- `AUTH_ISSUER`: `https://login.microsoftonline.com/{tenant-id}/v2.0`
+- `AUTH_JWKS_URL`: use `jwks_uri` from the discovery document
+- `AUTH_AUDIENCE`: API App ID URI or client ID configured in Entra ID
+
 Examples
 - Copy `configs/env.example` and export values in your shell.
