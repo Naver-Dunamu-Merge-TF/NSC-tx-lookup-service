@@ -56,7 +56,7 @@
 - [x] 감사 로그 스키마/저장 경로 확정(테이블 or 로그 집계)
 - [x] 감사 로그 필드(`who/when/what/result/ip/ua`) 일관화
 - [x] 민감 필드 최소화/마스킹 정책 추가
-- [ ] Commit
+- [x] Commit
 
 ## Phase 7 — 관측/운영(SLO) 강화
 - [ ] API 지표(p50/p95/p99, error rate, QPS) 계측
