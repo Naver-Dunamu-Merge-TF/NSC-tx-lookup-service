@@ -9,20 +9,35 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
+from prometheus_client import start_http_server
 
 from src.common.config import load_config
 from src.common.logging import configure_logging
+from src.common.observability import (
+    correlation_context,
+    extract_correlation_id_from_headers,
+    extract_correlation_id_from_payload,
+)
 from src.consumer.dlq import write_dlq
 from src.consumer.events import (
     EventValidationError,
     LedgerEntryUpserted,
     PaymentOrderUpserted,
 )
-from src.consumer.metrics import PairingMetrics, VersionMissingCounter
+from src.consumer.metrics import (
+    PairingMetrics,
+    VersionMissingCounter,
+    record_consumer_message,
+    record_dlq,
+    record_event_lag,
+    record_kafka_lag,
+    record_version_missing,
+)
 from src.consumer.processor import upsert_ledger_entry, upsert_payment_order
 from src.db.session import session_scope
 
 logger = logging.getLogger(__name__)
+_METRICS_STARTED = False
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:
@@ -55,6 +70,20 @@ def _build_consumer() -> Consumer:
     )
 
 
+def _start_metrics_server() -> None:
+    global _METRICS_STARTED
+    if _METRICS_STARTED:
+        return
+    config = load_config()
+    start_http_server(config.metrics_port, addr=config.metrics_host)
+    logger.info(
+        "Metrics server listening on %s:%s",
+        config.metrics_host,
+        config.metrics_port,
+    )
+    _METRICS_STARTED = True
+
+
 def _handle_payload(
     topic: str,
     payload: dict[str, Any],
@@ -66,6 +95,7 @@ def _handle_payload(
     with session_scope() as session:
         if topic == config.ledger_topic:
             event = LedgerEntryUpserted.from_dict(payload)
+            record_event_lag(topic, event.event_time)
             missing_version, pairing_snapshot = upsert_ledger_entry(session, event)
             if pairing_snapshot:
                 if pairing_metrics.record(
@@ -75,10 +105,13 @@ def _handle_payload(
                     logger.info(pairing_metrics.summary())
         elif topic == config.payment_order_topic:
             event = PaymentOrderUpserted.from_dict(payload)
+            event_time = event.updated_at or event.created_at
+            record_event_lag(topic, event_time)
             missing_version = upsert_payment_order(session, event)
         else:
             raise EventValidationError(f"Unsupported topic {topic}")
 
+    record_version_missing(topic, missing_version)
     if counter.record(missing_version):
         logger.info(counter.summary())
 
@@ -88,6 +121,7 @@ def run_consumer(
     max_idle_seconds: int | None = None,
 ) -> None:
     config = load_config()
+    _start_metrics_server()
     consumer = _build_consumer()
     topics = [config.ledger_topic, config.payment_order_topic]
     consumer.subscribe(topics)
@@ -123,13 +157,29 @@ def run_consumer(
                     continue
                 raise KafkaException(msg.error())
 
+            correlation_id = extract_correlation_id_from_headers(msg.headers())
             try:
                 payload = json.loads(msg.value() or b"{}")
-                _handle_payload(msg.topic(), payload, counter, pairing_metrics)
-                consumer.commit(msg)
+                if correlation_id is None:
+                    correlation_id = extract_correlation_id_from_payload(payload)
+                with correlation_context(correlation_id):
+                    _handle_payload(msg.topic(), payload, counter, pairing_metrics)
+                    try:
+                        _low, high = consumer.get_watermark_offsets(
+                            msg.topic(), msg.partition(), cached=False
+                        )
+                        lag = max(0, high - msg.offset() - 1)
+                        record_kafka_lag(msg.topic(), msg.partition(), lag)
+                    except Exception:
+                        logger.debug("Failed to read Kafka offsets", exc_info=True)
+                    consumer.commit(msg)
+                    record_consumer_message(msg.topic(), "success")
                 processed += 1
                 last_message_at = time.monotonic()
             except (json.JSONDecodeError, EventValidationError, Exception) as exc:
+                with correlation_context(correlation_id):
+                    record_consumer_message(msg.topic(), "error")
+                    record_dlq(msg.topic())
                 dlq_payload = {
                     "topic": msg.topic(),
                     "partition": msg.partition(),
@@ -139,6 +189,7 @@ def run_consumer(
                     if msg.value()
                     else None,
                     "error": str(exc),
+                    "correlation_id": correlation_id,
                     "ingested_at": datetime.now(timezone.utc).isoformat(),
                 }
                 write_dlq(config.dlq_path, dlq_payload)
@@ -156,6 +207,8 @@ def run_backfill(
     since: datetime | None,
     until: datetime | None,
 ) -> None:
+    _start_metrics_server()
+    config = load_config()
     counter = VersionMissingCounter()
     pairing_metrics = PairingMetrics()
 
@@ -172,23 +225,31 @@ def run_backfill(
                 event = LedgerEntryUpserted.from_dict(payload)
                 if not _within_range(event.event_time):
                     continue
-                with session_scope() as session:
-                    missing, pairing_snapshot = upsert_ledger_entry(session, event)
-                if counter.record(missing):
-                    logger.info(counter.summary())
-                if pairing_snapshot:
-                    if pairing_metrics.record(
-                        pairing_snapshot.complete,
-                        pairing_snapshot.incomplete_age_sec,
-                    ):
-                        logger.info(pairing_metrics.summary())
+                correlation_id = extract_correlation_id_from_payload(payload)
+                with correlation_context(correlation_id):
+                    with session_scope() as session:
+                        missing, pairing_snapshot = upsert_ledger_entry(session, event)
+                    record_event_lag(config.ledger_topic, event.event_time)
+                    record_version_missing(config.ledger_topic, missing)
+                    record_consumer_message(config.ledger_topic, "success")
+                    if counter.record(missing):
+                        logger.info(counter.summary())
+                    if pairing_snapshot:
+                        if pairing_metrics.record(
+                            pairing_snapshot.complete,
+                            pairing_snapshot.incomplete_age_sec,
+                        ):
+                            logger.info(pairing_metrics.summary())
             except Exception as exc:
+                record_consumer_message("backfill-ledger", "error")
+                record_dlq("backfill-ledger")
                 write_dlq(
-                    load_config().dlq_path,
+                    config.dlq_path,
                     {
                         "topic": "backfill-ledger",
                         "payload": payload,
                         "error": str(exc),
+                        "correlation_id": extract_correlation_id_from_payload(payload),
                         "ingested_at": datetime.now(timezone.utc).isoformat(),
                     },
                 )
@@ -200,17 +261,27 @@ def run_backfill(
                 event = PaymentOrderUpserted.from_dict(payload)
                 if not _within_range(event.created_at):
                     continue
-                with session_scope() as session:
-                    missing = upsert_payment_order(session, event)
-                if counter.record(missing):
-                    logger.info(counter.summary())
+                correlation_id = extract_correlation_id_from_payload(payload)
+                with correlation_context(correlation_id):
+                    with session_scope() as session:
+                        missing = upsert_payment_order(session, event)
+                    record_event_lag(
+                        config.payment_order_topic, event.updated_at or event.created_at
+                    )
+                    record_version_missing(config.payment_order_topic, missing)
+                    record_consumer_message(config.payment_order_topic, "success")
+                    if counter.record(missing):
+                        logger.info(counter.summary())
             except Exception as exc:
+                record_consumer_message("backfill-payment-order", "error")
+                record_dlq("backfill-payment-order")
                 write_dlq(
-                    load_config().dlq_path,
+                    config.dlq_path,
                     {
                         "topic": "backfill-payment-order",
                         "payload": payload,
                         "error": str(exc),
+                        "correlation_id": extract_correlation_id_from_payload(payload),
                         "ingested_at": datetime.now(timezone.utc).isoformat(),
                     },
                 )

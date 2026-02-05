@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.common.config import load_config
+from src.db.observability import install_sqlalchemy_observability
 
 _ENGINE = None
 _SESSION_FACTORY = None
@@ -23,6 +24,7 @@ def get_engine():
             pool_timeout=config.db_pool_timeout,
             pool_recycle=config.db_pool_recycle,
         )
+        install_sqlalchemy_observability(_ENGINE)
     return _ENGINE
 
 

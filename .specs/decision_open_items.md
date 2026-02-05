@@ -11,6 +11,9 @@ Last updated: 2026-02-05
 | DEC-004 | Pairing regression policy | `should_update_pair` blocks complete → incomplete updates | Reversals/refunds may require different policy | Decide if complete pairs can be overwritten by later events |
 | DEC-005 | `related_type` expansion | Pairing only for `PAYMENT_ORDER`, others → `UNKNOWN` | Future domains may need pairing logic | Define supported related types and rules |
 | DEC-006 | `amount_signed` source of truth | Uses event payload when present; no derivation if missing | Need consistency rule across upstream data | Decide whether to compute from `amount` + entry type when absent |
+| DEC-007 | Slow query threshold | `DB_SLOW_QUERY_MS=200` for slow-query logging | Aligns DB slow query definition with SLOs | Confirm threshold per environment |
+| DEC-008 | Consumer freshness timestamp | Uses `ledger.event_time` and `payment_order.updated_at` fallback to `created_at` | Defines end-to-end freshness metric basis | Confirm which timestamp best represents OLTP commit time |
+| DEC-009 | Correlation ID header | Uses `X-Correlation-ID` for inbound/outbound propagation | Ensure compatibility with existing gateway conventions | Confirm standard header name |
 
 ## Decided
 | ID | Topic | Decision | Evidence |

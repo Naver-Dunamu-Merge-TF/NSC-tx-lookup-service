@@ -6,13 +6,17 @@ from starlette.requests import Request
 from src.api.audit import build_audit_fields, extract_actor
 from src.api.auth import require_admin_read
 from src.api.constants import ADMIN_TX_LOOKUP
+from src.api.observability import register_observability
 from src.api.schemas import AdminTxResponse
+from src.common.logging import configure_logging
 from src.api.service import build_admin_tx_response
 from src.db.audit import record_admin_audit
 from src.db.admin_tx import fetch_admin_tx_context
 from src.db.session import session_scope
 
+configure_logging()
 app = FastAPI(title="Backoffice Admin API")
+register_observability(app)
 
 
 @app.get("/admin/tx/{tx_id}", response_model=AdminTxResponse)

@@ -79,3 +79,14 @@ sequenceDiagram
 1. Export environment variables (see `configs/env.example` and `configs/README.md`)
 1. Run API or consumer locally once implemented
 
+---
+
+## Observability (local)
+
+- API metrics: `http://localhost:8000/metrics`
+- Consumer metrics: `http://localhost:9108/metrics`
+- Optional Prometheus + Grafana:
+  - `docker compose -f docker-compose.observability.yml up -d`
+  - Grafana: `http://localhost:3000` (default `admin` / `admin`)
+
+Note: `docker-compose.observability.yml` uses `network_mode: host` so Prometheus/Grafana can scrape host metrics endpoints.

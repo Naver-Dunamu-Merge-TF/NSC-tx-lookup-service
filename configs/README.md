@@ -30,6 +30,9 @@ Required variables (current skeleton)
 - `DB_MAX_OVERFLOW`: extra overflow connections (default `10`)
 - `DB_POOL_TIMEOUT`: seconds to wait for a connection (default `30`)
 - `DB_POOL_RECYCLE`: seconds before recycling a connection (default `1800`)
+- `METRICS_HOST`: metrics server bind host (default `0.0.0.0`)
+- `METRICS_PORT`: metrics server port (default `9108`)
+- `DB_SLOW_QUERY_MS`: slow query log threshold in milliseconds (default `200`)
 
 OIDC provider decision
 - Provider: Microsoft Entra ID (Azure AD)
