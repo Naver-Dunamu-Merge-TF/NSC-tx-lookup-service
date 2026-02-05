@@ -39,7 +39,7 @@
 - [x] `bo.payment_ledger_pairs` 업데이트/보정 정책 정의
 - [x] `pair_incomplete` 비율/지연 시간 산출 지표 추가
 - [x] out-of-order 이벤트에 대한 페어링 안정성 테스트
-- [ ] Commit
+- [x] Commit
 
 ## Phase 5 — Admin API Read-only MVP
 - [ ] FastAPI 앱 스켈레톤 및 `GET /admin/tx/{tx_id}` 구현
