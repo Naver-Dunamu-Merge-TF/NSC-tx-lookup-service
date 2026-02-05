@@ -22,16 +22,16 @@
 - [x] Commit
 
 ## Phase 3 — 초기 적재(Backfill) + Sync Consumer 기본 동작
-- [ ] 초기 적재(backfill) 범위/기간 정의 및 스크립트 설계
-- [ ] backfill 실행 경로 구현(덤프 적재 또는 배치 모드)
-- [ ] 이벤트 스키마 모델(`LedgerEntryUpserted`, `PaymentOrderUpserted`) 정의
-- [ ] Kafka consumer 루프 및 역직렬화/검증 파이프라인 구현
-- [ ] 멱등 upsert 로직 구현(`tx_id`, `order_id`) + `updated_at/version` 최신판 정책
-- [ ] `updated_at/version` 부재 시 `ingested_at` 기준 LWW 정책 적용
-- [ ] `ingested_at` 기록 및 `version_missing_cnt` 지표 산출
-- [ ] DLQ 기본 처리(파일/토픽/테이블 중 1개 선택) 스켈레톤
-- [ ] (Local) 샘플 이벤트 퍼블리셔 및 재처리 시나리오 테스트
-- [ ] 통합 테스트용 토픽/필수 필드 체크리스트 검증 및 샘플 메시지 확보
+- [x] 초기 적재(backfill) 범위/기간 정의 및 스크립트 설계
+- [x] backfill 실행 경로 구현(덤프 적재 또는 배치 모드)
+- [x] 이벤트 스키마 모델(`LedgerEntryUpserted`, `PaymentOrderUpserted`) 정의
+- [x] Kafka consumer 루프 및 역직렬화/검증 파이프라인 구현
+- [x] 멱등 upsert 로직 구현(`tx_id`, `order_id`) + `updated_at/version` 최신판 정책
+- [x] `updated_at/version` 부재 시 `ingested_at` 기준 LWW 정책 적용
+- [x] `ingested_at` 기록 및 `version_missing_cnt` 지표 산출
+- [x] DLQ 기본 처리(파일/토픽/테이블 중 1개 선택) 스켈레톤
+- [x] (Local) 샘플 이벤트 퍼블리셔 및 재처리 시나리오 테스트
+- [x] 통합 테스트용 토픽/필수 필드 체크리스트 검증 및 샘플 메시지 확보
 - [ ] Commit
 
 ## Phase 4 — 페어링 테이블 + 품질 지표
@@ -106,13 +106,13 @@
 - [x] (옵션) `bo.admin_tx_search` 설계 결정
 
 ### Phase 3
-- [ ] backfill 스크립트/경로 검증
-- [ ] Consumer 기본 동작(consume→upsert) 확인
-- [ ] 최신판 정책(`updated_at/version`) 적용 확인
-- [ ] `ingested_at` LWW 정책 적용 확인
-- [ ] `ingested_at` 기록/지표 산출 확인
-- [ ] DLQ 스켈레톤 동작 확인
-- [ ] 토픽/필수 필드 체크리스트 검증
+- [x] backfill 스크립트/경로 검증
+- [x] Consumer 기본 동작(consume→upsert) 확인
+- [x] 최신판 정책(`updated_at/version`) 적용 확인
+- [x] `ingested_at` LWW 정책 적용 확인
+- [x] `ingested_at` 기록/지표 산출 확인
+- [x] DLQ 스켈레톤 동작 확인
+- [x] 토픽/필수 필드 체크리스트 검증
 
 ### Phase 4
 - [ ] 페어링 부분/완성 케이스 동작 확인

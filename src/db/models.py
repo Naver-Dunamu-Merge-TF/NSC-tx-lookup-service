@@ -28,6 +28,7 @@ class LedgerEntry(Base):
     event_time: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    source_version: Mapped[int | None] = mapped_column(sa.BigInteger)
     ingested_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
     )
@@ -50,6 +51,7 @@ class PaymentOrder(Base):
     status: Mapped[str] = mapped_column(sa.Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    source_version: Mapped[int | None] = mapped_column(sa.BigInteger)
     ingested_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
     )

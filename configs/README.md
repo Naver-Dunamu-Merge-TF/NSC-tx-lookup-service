@@ -12,6 +12,11 @@ Required variables (current skeleton)
 - `DATABASE_URL`: Backoffice DB connection string
 - `KAFKA_BROKERS`: Kafka bootstrap servers
 - `SERVICE_NAME`: service identifier for logs/metrics
+- `KAFKA_GROUP_ID`: consumer group id
+- `LEDGER_TOPIC`: ledger entry topic
+- `PAYMENT_ORDER_TOPIC`: payment order topic
+- `DLQ_PATH`: local DLQ file path
+- `CONSUMER_POLL_TIMEOUT_MS`: Kafka poll timeout in milliseconds
 - `DB_POOL_SIZE`: SQLAlchemy pool size (default `5`)
 - `DB_MAX_OVERFLOW`: extra overflow connections (default `10`)
 - `DB_POOL_TIMEOUT`: seconds to wait for a connection (default `30`)

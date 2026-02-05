@@ -27,6 +27,7 @@ def seed() -> None:
         "event_time": now,
         "created_at": now,
         "updated_at": now,
+        "source_version": 1,
         "ingested_at": now,
     }
 
@@ -41,6 +42,7 @@ def seed() -> None:
         "event_time": now,
         "created_at": now,
         "updated_at": now,
+        "source_version": 1,
         "ingested_at": now,
     }
 
@@ -52,6 +54,7 @@ def seed() -> None:
         "status": "SETTLED",
         "created_at": now,
         "updated_at": now,
+        "source_version": 1,
         "ingested_at": now,
     }
 

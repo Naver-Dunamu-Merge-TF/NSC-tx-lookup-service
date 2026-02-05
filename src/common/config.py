@@ -15,6 +15,11 @@ class AppConfig:
     database_url: str
     kafka_brokers: str
     service_name: str
+    consumer_group_id: str
+    ledger_topic: str
+    payment_order_topic: str
+    dlq_path: str
+    consumer_poll_timeout_ms: int
     db_pool_size: int
     db_max_overflow: int
     db_pool_timeout: int
@@ -52,6 +57,13 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
         ),
         kafka_brokers=_get_env(source, "KAFKA_BROKERS", "localhost:9092"),
         service_name=_get_env(source, "SERVICE_NAME", "tx-lookup-service"),
+        consumer_group_id=_get_env(source, "KAFKA_GROUP_ID", "bo-sync-consumer"),
+        ledger_topic=_get_env(source, "LEDGER_TOPIC", "ledger.entry.upserted"),
+        payment_order_topic=_get_env(
+            source, "PAYMENT_ORDER_TOPIC", "payment.order.upserted"
+        ),
+        dlq_path=_get_env(source, "DLQ_PATH", "./dlq/failed_events.jsonl"),
+        consumer_poll_timeout_ms=_get_int(source, "CONSUMER_POLL_TIMEOUT_MS", 1000),
         db_pool_size=_get_int(source, "DB_POOL_SIZE", 5),
         db_max_overflow=_get_int(source, "DB_MAX_OVERFLOW", 10),
         db_pool_timeout=_get_int(source, "DB_POOL_TIMEOUT", 30),
