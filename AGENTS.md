@@ -33,6 +33,22 @@ Development environment
  - **Testing**: pytest + Docker Compose
 
 
+Local integration (Docker Compose)
+----------------------------------
+
+Use the repository `docker-compose.yml` for local DB + Kafka integration.
+
+Start:
+`docker compose up -d`
+
+Stop (and remove volumes):
+`docker compose down -v`
+
+Local endpoints:
+`postgresql://bo:bo@localhost:5432/bo`
+`localhost:9092` (Kafka)
+
+
 Repository structure
 --------------------
 
