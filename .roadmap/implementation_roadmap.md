@@ -19,7 +19,7 @@
 - [x] 공통 DB 접근 레이어(연결 풀/세션) 및 upsert 헬퍼 구축
 - [x] (Local) 로컬 DB 마이그레이션 적용 및 샘플 데이터 seed 스크립트 추가
 - [x] (옵션) `bo.admin_tx_search` 뷰/테이블 필요성 결정 및 설계 초안 (Phase 5 API 쿼리 패턴 확정 후 재검토)
-- [ ] Commit
+- [x] Commit
 
 ## Phase 3 — 초기 적재(Backfill) + Sync Consumer 기본 동작
 - [ ] 초기 적재(backfill) 범위/기간 정의 및 스크립트 설계
