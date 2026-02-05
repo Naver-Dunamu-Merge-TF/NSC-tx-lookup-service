@@ -79,3 +79,36 @@ class PaymentLedgerPair(Base):
     ingested_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
     )
+
+
+class AdminAuditLog(Base):
+    __tablename__ = "admin_audit_logs"
+    __table_args__ = (
+        sa.Index("ix_bo_admin_audit_logs_requested_at", "requested_at"),
+        sa.Index("ix_bo_admin_audit_logs_resource_id", "resource_id"),
+        sa.Index("ix_bo_admin_audit_logs_actor_id", "actor_id"),
+        sa.Index(
+            "ix_bo_admin_audit_logs_resource_time", "resource_id", "requested_at"
+        ),
+        {"schema": "bo"},
+    )
+
+    audit_id: Mapped[int] = mapped_column(
+        sa.BigInteger, sa.Identity(always=True), primary_key=True
+    )
+    actor_id: Mapped[str | None] = mapped_column(sa.Text)
+    actor_roles: Mapped[str | None] = mapped_column(sa.Text)
+    action: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    resource_type: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    resource_id: Mapped[str | None] = mapped_column(sa.Text)
+    result: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    status_code: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    ip: Mapped[str | None] = mapped_column(sa.Text)
+    user_agent: Mapped[str | None] = mapped_column(sa.Text)
+    request_method: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    request_path: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    request_query: Mapped[str | None] = mapped_column(sa.Text)
+    requested_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+    )
+    duration_ms: Mapped[int | None] = mapped_column(sa.Integer)
