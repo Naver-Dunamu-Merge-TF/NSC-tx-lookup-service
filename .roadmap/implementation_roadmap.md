@@ -11,7 +11,7 @@
 - [x] 공통 설정 로딩(환경변수/시크릿) 스켈레톤 및 기본 로깅 포맷 확정
 - [x] (Local) `docker compose` 스켈레톤: PostgreSQL + Kafka(or Event Hub emulator 대체) 부팅
 - [x] 개발/운영 환경 구분(`local/dev/prod`) 기본 규칙 문서화
-- [ ] Commit
+- [x] Commit
 
 ## Phase 2 — Backoffice DB 스키마 + 마이그레이션
 - [ ] `bo.ledger_entries`, `bo.payment_orders`, `bo.payment_ledger_pairs` 스키마 정의 및 인덱스 설계
