@@ -1,22 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from src.db.models import LedgerEntry, PaymentLedgerPair, PaymentOrder
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 @dataclass(frozen=True)
 class AdminTxContext:
-    ledger_entry: LedgerEntry
-    payment_order: PaymentOrder | None
-    payment_pair: PaymentLedgerPair | None
-    peer_entry: LedgerEntry | None
+    ledger_entry: Any
+    payment_order: Any | None
+    payment_pair: Any | None
+    peer_entry: Any | None
 
 
-def fetch_admin_tx_context(session: Session, tx_id: str) -> AdminTxContext | None:
+def fetch_admin_tx_context(session: "Session", tx_id: str) -> AdminTxContext | None:
+    from sqlalchemy import select
+
+    from src.db.models import LedgerEntry, PaymentLedgerPair, PaymentOrder
     stmt = (
         select(LedgerEntry, PaymentOrder, PaymentLedgerPair)
         .outerjoin(PaymentOrder, PaymentOrder.order_id == LedgerEntry.related_id)

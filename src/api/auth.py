@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import TYPE_CHECKING, Iterable, Mapping
+from typing import Iterable, Mapping
 from urllib.parse import parse_qsl, urlencode
 
 import jwt
@@ -11,8 +11,10 @@ from jwt import PyJWKClient
 from src.api.constants import ADMIN_READ_ROLE
 from src.common.config import load_config
 
-if TYPE_CHECKING:
-    from fastapi import Request
+try:
+    from starlette.requests import Request  # type: ignore
+except Exception:  # pragma: no cover - fallback for unit tests without deps
+    Request = object  # type: ignore
 
 
 auth_required_roles = {
@@ -106,7 +108,7 @@ def _decode_token(token: str) -> dict:
     )
 
 
-def _extract_bearer(request: "Request") -> str:
+def _extract_bearer(request: Request) -> str:
     auth_header = request.headers.get("authorization")
     if not auth_header:
         raise AuthError("Authorization header missing")
@@ -116,7 +118,7 @@ def _extract_bearer(request: "Request") -> str:
     return parts[1]
 
 
-def require_admin_read(request: "Request") -> ActorContext:
+def require_admin_read(request: Request) -> ActorContext:
     from fastapi import HTTPException
     config = load_config()
     if config.auth_mode == "disabled":

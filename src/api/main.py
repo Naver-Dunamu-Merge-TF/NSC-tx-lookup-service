@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import time
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException
+from starlette.requests import Request
 
 from src.api.audit import build_audit_fields, extract_actor
 from src.api.auth import require_admin_read
