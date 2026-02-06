@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from prometheus_client import Counter, Gauge, Histogram
@@ -46,6 +46,12 @@ CONSUMER_KAFKA_LAG = Gauge(
     "consumer_kafka_lag",
     "Kafka partition lag",
     ["topic", "partition"],
+)
+
+CONSUMER_FRESHNESS_SECONDS = Gauge(
+    "consumer_freshness_seconds",
+    "End-to-end data freshness in seconds (now - max event_time)",
+    ["topic"],
 )
 
 CONSUMER_DLQ_TOTAL = Counter(
@@ -100,6 +106,24 @@ def record_dlq(topic: str) -> None:
 def record_version_missing(topic: str, missing: bool) -> None:
     if missing:
         VERSION_MISSING_TOTAL.labels(topic=topic).inc()
+
+
+@dataclass
+class FreshnessTracker:
+    last_event_time: dict[str, datetime] = field(default_factory=dict)
+
+    def record(self, topic: str, event_time: datetime | None) -> None:
+        if event_time is None:
+            return
+        last = self.last_event_time.get(topic)
+        if last is None or event_time > last:
+            self.last_event_time[topic] = event_time
+        latest = self.last_event_time.get(topic)
+        if latest is None:
+            return
+        now = datetime.now(timezone.utc)
+        freshness = (now - latest).total_seconds()
+        CONSUMER_FRESHNESS_SECONDS.labels(topic=topic).set(max(0.0, freshness))
 
 
 @dataclass

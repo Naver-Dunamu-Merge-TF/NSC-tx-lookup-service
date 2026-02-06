@@ -59,12 +59,12 @@
 - [x] Commit
 
 ## Phase 7 — 관측/운영(SLO) 강화
-- [ ] API 지표(p50/p95/p99, error rate, QPS) 계측
-- [ ] Consumer 지표(lag, DLQ rate, freshness) 계측
-- [ ] 트레이싱/코릴레이션 ID 전파
-- [ ] (Local) 메트릭 노출(예: /metrics) 및 대시보드 초안
-- [ ] SLO 기준 명시: API p95 200ms, 데이터 신선도 p95 5s, 알림 임계치 정의
-- [ ] Commit
+- [x] API 지표(p50/p95/p99, error rate, QPS) 계측
+- [x] Consumer 지표(lag, DLQ rate, freshness) 계측
+- [x] 트레이싱/코릴레이션 ID 전파
+- [x] (Local) 메트릭 노출(예: /metrics) 및 대시보드 초안
+- [x] SLO 기준 명시: API p95 200ms, 데이터 신선도 p95 5s, 알림 임계치 정의
+- [x] Commit
 
 ## Phase 8 — 클라우드 인프라 준비(Azure)
 - [ ] (Cloud) Azure PostgreSQL(Flexible) 프로비저닝 및 네트워크 정책 정의
@@ -131,10 +131,10 @@
 - [x] 민감 필드 최소화 정책 반영
 
 ### Phase 7
-- [ ] API/Consumer 핵심 지표 노출 확인
-- [ ] 트레이싱/코릴레이션 ID 전파 확인
-- [ ] (Local) 대시보드 초안 확인
-- [ ] SLO 기준 및 알림 임계치 확정
+- [x] API/Consumer 핵심 지표 노출 확인
+- [x] 트레이싱/코릴레이션 ID 전파 확인
+- [x] (Local) 대시보드 초안 확인
+- [x] SLO 기준 및 알림 임계치 확정
 
 ### Phase 8
 - [ ] (Cloud) DB/브로커/컴퓨트 리소스 생성 확인

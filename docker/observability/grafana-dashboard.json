@@ -17,20 +17,41 @@
   "panels": [
     {
       "datasource": "Prometheus",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
       "targets": [
         {
+          "expr": "histogram_quantile(0.50, sum(rate(api_request_latency_seconds_bucket[5m])) by (le))",
+          "refId": "A",
+          "legendFormat": "p50"
+        },
+        {
           "expr": "histogram_quantile(0.95, sum(rate(api_request_latency_seconds_bucket[5m])) by (le))",
-          "refId": "A"
+          "refId": "B",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(api_request_latency_seconds_bucket[5m])) by (le))",
+          "refId": "C",
+          "legendFormat": "p99"
         }
       ],
-      "title": "API Latency p95",
+      "title": "API Latency p50/p95/p99",
       "type": "timeseries"
     },
     {
       "datasource": "Prometheus",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
       "id": 2,
       "targets": [
         {
@@ -43,7 +64,12 @@
     },
     {
       "datasource": "Prometheus",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
       "id": 3,
       "targets": [
         {
@@ -56,7 +82,12 @@
     },
     {
       "datasource": "Prometheus",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
       "id": 4,
       "targets": [
         {
@@ -69,7 +100,12 @@
     },
     {
       "datasource": "Prometheus",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
       "id": 5,
       "targets": [
         {
@@ -82,7 +118,12 @@
     },
     {
       "datasource": "Prometheus",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
       "id": 6,
       "targets": [
         {
@@ -95,7 +136,12 @@
     },
     {
       "datasource": "Prometheus",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
       "id": 7,
       "targets": [
         {
@@ -105,11 +151,32 @@
       ],
       "title": "Pairing Incomplete Ratio",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "max(consumer_freshness_seconds) by (topic)",
+          "refId": "A",
+          "legendFormat": "{{topic}}"
+        }
+      ],
+      "title": "Data Freshness (max)",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["backoffice"],
+  "tags": [
+    "backoffice"
+  ],
   "title": "Backoffice Observability (Draft)",
   "uid": "bo-observability",
   "version": 1

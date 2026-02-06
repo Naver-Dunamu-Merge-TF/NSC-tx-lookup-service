@@ -25,6 +25,7 @@ from src.consumer.events import (
     PaymentOrderUpserted,
 )
 from src.consumer.metrics import (
+    FreshnessTracker,
     PairingMetrics,
     VersionMissingCounter,
     record_consumer_message,
@@ -89,6 +90,7 @@ def _handle_payload(
     payload: dict[str, Any],
     counter: VersionMissingCounter,
     pairing_metrics: PairingMetrics,
+    freshness: FreshnessTracker | None = None,
 ) -> None:
     config = load_config()
     missing_version = False
@@ -96,6 +98,8 @@ def _handle_payload(
         if topic == config.ledger_topic:
             event = LedgerEntryUpserted.from_dict(payload)
             record_event_lag(topic, event.event_time)
+            if freshness is not None:
+                freshness.record(topic, event.event_time)
             missing_version, pairing_snapshot = upsert_ledger_entry(session, event)
             if pairing_snapshot:
                 if pairing_metrics.record(
@@ -107,6 +111,8 @@ def _handle_payload(
             event = PaymentOrderUpserted.from_dict(payload)
             event_time = event.updated_at or event.created_at
             record_event_lag(topic, event_time)
+            if freshness is not None:
+                freshness.record(topic, event_time)
             missing_version = upsert_payment_order(session, event)
         else:
             raise EventValidationError(f"Unsupported topic {topic}")
@@ -128,6 +134,7 @@ def run_consumer(
 
     counter = VersionMissingCounter()
     pairing_metrics = PairingMetrics()
+    freshness = FreshnessTracker()
     processed = 0
     last_message_at = time.monotonic()
 
@@ -163,7 +170,7 @@ def run_consumer(
                 if correlation_id is None:
                     correlation_id = extract_correlation_id_from_payload(payload)
                 with correlation_context(correlation_id):
-                    _handle_payload(msg.topic(), payload, counter, pairing_metrics)
+                    _handle_payload(msg.topic(), payload, counter, pairing_metrics, freshness)
                     try:
                         _low, high = consumer.get_watermark_offsets(
                             msg.topic(), msg.partition(), cached=False
@@ -211,6 +218,7 @@ def run_backfill(
     config = load_config()
     counter = VersionMissingCounter()
     pairing_metrics = PairingMetrics()
+    freshness = FreshnessTracker()
 
     def _within_range(value: datetime) -> bool:
         if since and value < since:
@@ -230,6 +238,7 @@ def run_backfill(
                     with session_scope() as session:
                         missing, pairing_snapshot = upsert_ledger_entry(session, event)
                     record_event_lag(config.ledger_topic, event.event_time)
+                    freshness.record(config.ledger_topic, event.event_time)
                     record_version_missing(config.ledger_topic, missing)
                     record_consumer_message(config.ledger_topic, "success")
                     if counter.record(missing):
@@ -266,6 +275,9 @@ def run_backfill(
                     with session_scope() as session:
                         missing = upsert_payment_order(session, event)
                     record_event_lag(
+                        config.payment_order_topic, event.updated_at or event.created_at
+                    )
+                    freshness.record(
                         config.payment_order_topic, event.updated_at or event.created_at
                     )
                     record_version_missing(config.payment_order_topic, missing)

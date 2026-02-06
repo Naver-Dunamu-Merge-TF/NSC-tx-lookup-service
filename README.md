@@ -88,5 +88,6 @@ sequenceDiagram
 - Optional Prometheus + Grafana:
   - `docker compose -f docker-compose.observability.yml up -d`
   - Grafana: `http://localhost:3000` (default `admin` / `admin`)
+  - Alert rules: `docker/observability/alert_rules.yml` (API p95 200ms, data freshness 5s, error rate 2%, DLQ activity)
 
 Note: `docker-compose.observability.yml` uses `network_mode: host` so Prometheus/Grafana can scrape host metrics endpoints.

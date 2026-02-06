@@ -1,6 +1,6 @@
 # Decision Open Items
 
-Last updated: 2026-02-05
+Last updated: 2026-02-06
 
 ## Open items
 | ID | Topic | Current assumption/implementation | Why decision needed | Next step |
@@ -14,6 +14,7 @@ Last updated: 2026-02-05
 | DEC-007 | Slow query threshold | `DB_SLOW_QUERY_MS=200` for slow-query logging | Aligns DB slow query definition with SLOs | Confirm threshold per environment |
 | DEC-008 | Consumer freshness timestamp | Uses `ledger.event_time` and `payment_order.updated_at` fallback to `created_at` | Defines end-to-end freshness metric basis | Confirm which timestamp best represents OLTP commit time |
 | DEC-009 | Correlation ID header | Uses `X-Correlation-ID` for inbound/outbound propagation | Ensure compatibility with existing gateway conventions | Confirm standard header name |
+| DEC-010 | Alert thresholds (API error rate, DLQ) | Prometheus alerts: API error rate >2% for 5m, DLQ activity >0 for 5m | Thresholds are org/ops-specific and may cause alert noise | Confirm desired thresholds and severities |
 
 ## Decided
 | ID | Topic | Decision | Evidence |
