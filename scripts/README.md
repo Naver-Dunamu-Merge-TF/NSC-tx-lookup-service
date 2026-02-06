@@ -18,6 +18,15 @@ python -m src.consumer.main backfill \
 python scripts/publish_sample_events.py
 ```
 
+## Publish synthetic scenario events
+
+```
+python scripts/publish_synthetic_events.py --scenario happy --run-id smoke-001
+python scripts/publish_synthetic_events.py --scenario duplicate --run-id smoke-dup-001
+python scripts/publish_synthetic_events.py --scenario out_of_order --run-id smoke-ooo-001
+python scripts/publish_synthetic_events.py --scenario error --run-id smoke-err-001
+```
+
 ## Replay DLQ file
 
 ```
@@ -29,3 +38,11 @@ python scripts/replay_dlq.py
 ```
 python scripts/smoke_admin_tx.py
 ```
+
+## Cloud Phase 8 automation
+
+```
+scripts/cloud/phase8/run_all.sh
+```
+
+Details: `scripts/cloud/phase8/README.md`

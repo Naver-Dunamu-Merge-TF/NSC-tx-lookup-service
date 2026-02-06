@@ -38,6 +38,8 @@ Azure scope used for this profile:
 3. Fixed tokens for current profile:
 - `owner=2dt026`
 - `env=test`
+4. Length-constrained resources (Container Apps family):
+- Pattern: `team4-tx-<resource>-<owner>-t`
 
 ### 3.2 Databricks managed resources
 
@@ -55,6 +57,14 @@ Resource group: `2dt-final-team4`
 | `team4-trade-data` | `Microsoft.EventHub/namespaces` | Existing Event Hubs namespace (legacy/shared naming) |
 | `2dtfinalteam4storagetest` | `Microsoft.Storage/storageAccounts` | Existing storage account |
 | `2dt-final-team4-databricks-test` | `Microsoft.Databricks/workspaces` | Databricks workspace used by Databricks repo |
+| `team4-txlookup-law-2dt026-test` | `Microsoft.OperationalInsights/workspaces` | Phase 8 Log Analytics workspace |
+| `team4-txlookup-ai-2dt026-test` | `Microsoft.Insights/components` | Phase 8 Application Insights |
+| `team4-txlookup-2dt026-test` | `Microsoft.EventHub/namespaces` | Phase 8 isolated Event Hubs namespace |
+| `team4-txlookup-pg-2dt026-test` | `Microsoft.DBforPostgreSQL/flexibleServers` | Phase 8 PostgreSQL Flexible Server |
+| `team4txlookup2dt026test` | `Microsoft.ContainerRegistry/registries` | Phase 8 ACR |
+| `team4-tx-caenv-2dt026-t` | `Microsoft.App/managedEnvironments` | Phase 8 Container Apps Environment |
+| `team4-tx-api-2dt026-t` | `Microsoft.App/containerApps` | Phase 8 Admin API app |
+| `team4-tx-con-2dt026-t` | `Microsoft.App/containerApps` | Phase 8 Consumer app |
 
 ### 4.2 Databricks managed resource group (team4 workspace)
 
@@ -70,7 +80,7 @@ Resource group: `databricks-rg-2dt-final-team4-databricks-test-i75zgjbs3ihjc`
 | `nat-gateway` | `Microsoft.Network/natGateways` |
 | `workers-vnet` | `Microsoft.Network/virtualNetworks` |
 
-## 5. Planned Phase 8 Names (tx-lookup test stack)
+## 5. Applied Phase 8 Names (tx-lookup test stack)
 
 1. Event Hubs namespace:
 - `team4-txlookup-2dt026-test`
@@ -89,13 +99,13 @@ Resource group: `databricks-rg-2dt-final-team4-databricks-test-i75zgjbs3ihjc`
 - `team4txlookup2dt026test`
 
 6. Container Apps Environment:
-- `team4-txlookup-caenv-2dt026-test`
+- `team4-tx-caenv-2dt026-t`
 
 7. Container App (API):
-- `team4-txlookup-api-2dt026-test`
+- `team4-tx-api-2dt026-t`
 
 8. Container App (Consumer):
-- `team4-txlookup-consumer-2dt026-test`
+- `team4-tx-con-2dt026-t`
 
 9. Log Analytics Workspace:
 - `team4-txlookup-law-2dt026-test`
@@ -115,3 +125,4 @@ Resource group: `databricks-rg-2dt-final-team4-databricks-test-i75zgjbs3ihjc`
 1. Keep Databricks managed resources untouched by manual rename/delete.
 2. Use isolated Event Hubs namespace for tx-lookup test runs (no shared namespace dependency).
 3. Treat this inventory as disposable; secure production naming may differ.
+4. Container Apps names are constrained to 32 chars, so test names use a shortened token form.

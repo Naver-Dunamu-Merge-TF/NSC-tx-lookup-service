@@ -7,6 +7,7 @@ from typing import Mapping
 
 ALLOWED_ENVS = {"local", "dev", "prod"}
 ALLOWED_AUTH_MODES = {"disabled", "oidc"}
+ALLOWED_KAFKA_SECURITY_PROTOCOLS = {"PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL"}
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,11 @@ class AppConfig:
     log_level: str
     database_url: str
     kafka_brokers: str
+    kafka_security_protocol: str
+    kafka_sasl_mechanism: str
+    kafka_sasl_username: str
+    kafka_sasl_password: str
+    kafka_ssl_ca_location: str
     service_name: str
     consumer_group_id: str
     ledger_topic: str
@@ -68,6 +74,27 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
             f"AUTH_MODE must be one of {sorted(ALLOWED_AUTH_MODES)} (got {auth_mode!r})"
         )
 
+    kafka_security_protocol = _get_env(
+        source, "KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"
+    ).upper()
+    if kafka_security_protocol not in ALLOWED_KAFKA_SECURITY_PROTOCOLS:
+        raise ValueError(
+            "KAFKA_SECURITY_PROTOCOL must be one of "
+            f"{sorted(ALLOWED_KAFKA_SECURITY_PROTOCOLS)} "
+            f"(got {kafka_security_protocol!r})"
+        )
+
+    kafka_sasl_mechanism = _get_env(source, "KAFKA_SASL_MECHANISM", "PLAIN")
+    kafka_sasl_username = _get_env(source, "KAFKA_SASL_USERNAME", "")
+    kafka_sasl_password = _get_env(source, "KAFKA_SASL_PASSWORD", "")
+    if kafka_security_protocol.startswith("SASL") and (
+        not kafka_sasl_username or not kafka_sasl_password
+    ):
+        raise ValueError(
+            "KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD are required "
+            "when KAFKA_SECURITY_PROTOCOL uses SASL"
+        )
+
     return AppConfig(
         app_env=app_env,
         log_level=_get_env(source, "LOG_LEVEL", "INFO"),
@@ -75,6 +102,11 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
             source, "DATABASE_URL", "postgresql+psycopg://bo:bo@localhost:5432/bo"
         ),
         kafka_brokers=_get_env(source, "KAFKA_BROKERS", "localhost:9092"),
+        kafka_security_protocol=kafka_security_protocol,
+        kafka_sasl_mechanism=kafka_sasl_mechanism,
+        kafka_sasl_username=kafka_sasl_username,
+        kafka_sasl_password=kafka_sasl_password,
+        kafka_ssl_ca_location=_get_env(source, "KAFKA_SSL_CA_LOCATION", ""),
         service_name=_get_env(source, "SERVICE_NAME", "tx-lookup-service"),
         consumer_group_id=_get_env(source, "KAFKA_GROUP_ID", "bo-sync-consumer"),
         ledger_topic=_get_env(source, "LEDGER_TOPIC", "ledger.entry.upserted"),

@@ -11,6 +11,11 @@ Required variables (current skeleton)
 - `LOG_LEVEL`: `INFO` by default
 - `DATABASE_URL`: Backoffice DB connection string
 - `KAFKA_BROKERS`: Kafka bootstrap servers
+- `KAFKA_SECURITY_PROTOCOL`: `PLAINTEXT` | `SSL` | `SASL_PLAINTEXT` | `SASL_SSL`
+- `KAFKA_SASL_MECHANISM`: SASL mechanism (default `PLAIN`)
+- `KAFKA_SASL_USERNAME`: SASL username (Event Hubs uses `$ConnectionString`)
+- `KAFKA_SASL_PASSWORD`: SASL password (Event Hubs uses namespace connection string)
+- `KAFKA_SSL_CA_LOCATION`: optional CA file path for SSL validation
 - `SERVICE_NAME`: service identifier for logs/metrics
 - `KAFKA_GROUP_ID`: consumer group id
 - `LEDGER_TOPIC`: ledger entry topic

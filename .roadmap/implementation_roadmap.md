@@ -70,15 +70,16 @@
 
 ## Phase 8 — Cloud-Test 인프라(폐기형 / Public)
 - [x] (Cloud-Test) 테스트 표준 조합 확정: Event Hubs(Kafka) + Container Apps + Public endpoint
-- [ ] (Cloud-Test) Azure PostgreSQL(Flexible) 프로비저닝 및 퍼블릭 접근 정책 적용
-- [ ] (Cloud-Test) Event Hubs 개인 분리 namespace/hub/consumer group 생성 (계약값: partition=2, retention=3d, hubs=2개)
-- [ ] (Cloud-Test) ACR + Container Apps 배포 기본값 확정 (consumer `min=1`, `max=1`)
+- [x] (Cloud-Test) Azure PostgreSQL(Flexible) 프로비저닝 및 퍼블릭 접근 정책 적용
+- [x] (Cloud-Test) Event Hubs 개인 분리 namespace/hub/consumer group 생성 (계약값: partition=2, retention=3d, hubs=2개)
+- [x] (Cloud-Test) ACR + Container Apps 배포 기본값 확정 (consumer `min=1`, `max=1`)
 - [x] (Cloud-Test) 시크릿 전달 정책 확정: SAS/env 우선, Key Vault+MI는 보안 전환 단계에서 적용
-- [ ] (Cloud-Test) Container Apps에 SAS/env 시크릿 주입 구성 적용
-- [ ] (Cloud-Test) App Insights/Log Analytics 연동
-- [ ] (Cloud-Test) 실데이터 부재 대비 synthetic 이벤트 세트 준비(happy/duplicate/out-of-order/error)
-- [ ] (Cloud-Test) Cloud smoke: publish -> consume -> upsert -> API(200/404) + 멱등성 재처리 확인
-- [ ] (Cloud-Test) 폐기/재생성(`Destroy -> Recreate`) 1회 검증 및 기록
+- [x] (Cloud-Test) Container Apps에 SAS/env 시크릿 주입 구성 적용
+- [x] (Cloud-Test) App Insights/Log Analytics 연동
+- [x] (Cloud-Test) 실데이터 부재 대비 synthetic 이벤트 세트 준비(happy/duplicate/out-of-order/error)
+- [x] (Cloud-Test) Cloud smoke: publish -> consume -> upsert -> API(200/404) + 멱등성 재처리 확인
+- [x] (Cloud-Test) 폐기/재생성(`Destroy -> Recreate`) 1회 검증 및 기록
+- [x] (Cloud-Test) RG lock으로 리소스 삭제가 막히는 경우 scale cycle(`min 1 -> 0 -> 1`) fallback 검증
 - [ ] Commit
 
 ## Phase 9 — Secure 인프라 승격(보안 네트워크 / 운영형)
@@ -154,10 +155,10 @@
 - [x] SLO 기준 및 알림 임계치 확정
 
 ### Phase 8
-- [ ] (Cloud-Test) DB/브로커/컴퓨트 리소스 생성 확인
-- [ ] (Cloud-Test) 관측 스택 연동 확인
-- [ ] (Cloud-Test) synthetic 이벤트 기반 E2E 스모크 확인
-- [ ] (Cloud-Test) 폐기/재생성 검증 기록 확인
+- [x] (Cloud-Test) DB/브로커/컴퓨트 리소스 생성 확인
+- [x] (Cloud-Test) 관측 스택 연동 확인
+- [x] (Cloud-Test) synthetic 이벤트 기반 E2E 스모크 확인
+- [x] (Cloud-Test) 폐기/재생성 검증 기록 확인
 
 ### Phase 9
 - [ ] (Cloud-Secure) 보안 네트워크/권한 정책 적용 확인

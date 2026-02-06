@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from src.api.main import app
 from src.common.config import load_config
+from src.common.kafka import build_kafka_client_config
 from src.consumer.main import run_consumer
 
 
@@ -29,7 +30,7 @@ def test_admin_tx_end_to_end(monkeypatch):
     monkeypatch.setenv("AUTH_MODE", "disabled")
 
     config = load_config()
-    producer = Producer({"bootstrap.servers": config.kafka_brokers})
+    producer = Producer(build_kafka_client_config(config))
 
     related_id = f"po-e2e-{suffix}"
     payment_tx = f"tx-e2e-pay-{suffix}"

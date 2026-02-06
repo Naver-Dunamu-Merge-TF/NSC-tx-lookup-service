@@ -11,11 +11,12 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from src.common.config import load_config
+from src.common.kafka import build_kafka_client_config
 
 
 def replay(dlq_path: Path) -> None:
     config = load_config()
-    producer = Producer({"bootstrap.servers": config.kafka_brokers})
+    producer = Producer(build_kafka_client_config(config))
 
     with dlq_path.open("r", encoding="utf-8") as handle:
         for line in handle:

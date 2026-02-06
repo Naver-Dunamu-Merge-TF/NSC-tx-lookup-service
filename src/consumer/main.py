@@ -12,6 +12,7 @@ from confluent_kafka import Consumer, KafkaError, KafkaException
 from prometheus_client import start_http_server
 
 from src.common.config import load_config
+from src.common.kafka import build_kafka_client_config
 from src.common.logging import configure_logging
 from src.common.observability import (
     correlation_context,
@@ -61,14 +62,15 @@ def _iter_json_lines(path: Path) -> Iterable[dict[str, Any]]:
 
 def _build_consumer() -> Consumer:
     config = load_config()
-    return Consumer(
+    kafka_config = build_kafka_client_config(config)
+    kafka_config.update(
         {
-            "bootstrap.servers": config.kafka_brokers,
             "group.id": config.consumer_group_id,
             "enable.auto.commit": False,
             "auto.offset.reset": config.consumer_offset_reset,
         }
     )
+    return Consumer(kafka_config)
 
 
 def _start_metrics_server() -> None:

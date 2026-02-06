@@ -15,6 +15,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from src.common.config import load_config
+from src.common.kafka import build_kafka_client_config
 from src.common.logging import configure_logging
 from src.consumer.main import run_consumer
 from src.db.models import PaymentLedgerPair
@@ -23,7 +24,7 @@ from src.db.session import session_scope
 
 def publish_events(order_id: str, payment_tx: str, receive_tx: str) -> None:
     config = load_config()
-    producer = Producer({"bootstrap.servers": config.kafka_brokers})
+    producer = Producer(build_kafka_client_config(config))
     now = datetime.now(timezone.utc).isoformat()
 
     ledger_payment = {
