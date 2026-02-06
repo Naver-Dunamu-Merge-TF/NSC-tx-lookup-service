@@ -43,51 +43,57 @@ OLTP DB → Kafka → [Sync Consumer] → Serving DB → [Admin API] → 관리�
 | GET | `/admin/payment-orders/{order_id}` | 오더 기준으로 조회합니다 |
 | GET | `/admin/wallets/{wallet_id}/tx` | 지갑의 거래 내역을 조회합니다 |
 
+> 각 엔드포인트의 요청/응답 스키마, 필드 설명, 예시 값, 에러 코드 등
+> 상세 API 문서는 서버 실행 후 아래 주소에서 확인할 수 있습니다.
+>
+> - **Swagger UI**: `http://localhost:8000/docs`
+> - **ReDoc**: `http://localhost:8000/redoc`
+
 ---
 
 ### 데이터 흐름
 
 ```mermaid
 sequenceDiagram
-  participant Admin as Admin User
-  participant UI as Admin UI
+  participant Admin as 관리자
+  participant UI as 관리자 UI
   participant API as Admin API
   participant DB as Backoffice DB
   participant BUS as Kafka/Event Hub
   participant C as Sync Consumer
 
-  Note over BUS,C: Continuous sync (near real-time)
+  Note over BUS,C: 지속적 동기화 (준실시간)
   BUS->>C: LedgerEntryUpserted / PaymentOrderUpserted
-  C->>DB: UPSERT (idempotent)
+  C->>DB: UPSERT (멱등성 보장)
 
-  Admin->>UI: Search tx_id
+  Admin->>UI: tx_id 검색
   UI->>API: GET /admin/tx/{tx_id}
   API->>DB: SELECT ledger_entries WHERE tx_id=...
-  alt related_id exists
-    API->>DB: SELECT pairs/peer by related_id
+  alt related_id 존재 시
+    API->>DB: related_id로 페어/피어 조회
   end
-  DB-->>API: tx trace (+pairing_status)
-  API-->>UI: Response (+data_lag_sec)
-  UI-->>Admin: Render result
+  DB-->>API: 거래 추적 결과 (+pairing_status)
+  API-->>UI: 응답 (+data_lag_sec)
+  UI-->>Admin: 결과 렌더링
 ```
 
 ---
 
-## Local development
+## 로컬 개발 환경
 
-1. Start dependencies: `docker compose up -d`
-1. Export environment variables (see `configs/env.example` and `configs/README.md`)
-1. Run API or consumer locally once implemented
+1. 의존 서비스 실행: `docker compose up -d`
+1. 환경 변수 설정 (`configs/env.example` 및 `configs/README.md` 참고)
+1. 구현 완료 후 API 또는 Consumer를 로컬에서 실행
 
 ---
 
-## Observability (local)
+## 관측성 (로컬)
 
-- API metrics: `http://localhost:8000/metrics`
-- Consumer metrics: `http://localhost:9108/metrics`
-- Optional Prometheus + Grafana:
+- API 메트릭: `http://localhost:8000/metrics`
+- Consumer 메트릭: `http://localhost:9108/metrics`
+- Prometheus + Grafana (선택사항):
   - `docker compose -f docker-compose.observability.yml up -d`
-  - Grafana: `http://localhost:3000` (default `admin` / `admin`)
-  - Alert rules: `docker/observability/alert_rules.yml` (API p95 200ms, data freshness 5s, error rate 2%, DLQ activity)
+  - Grafana: `http://localhost:3000` (기본 계정 `admin` / `admin`)
+  - 알림 규칙: `docker/observability/alert_rules.yml` (API p95 200ms, 데이터 신선도 5s, 에러율 2%, DLQ 활동)
 
-Note: `docker-compose.observability.yml` uses `network_mode: host` so Prometheus/Grafana can scrape host metrics endpoints.
+참고: `docker-compose.observability.yml`은 `network_mode: host`를 사용하므로 Prometheus/Grafana가 호스트의 메트릭 엔드포인트를 수집할 수 있습니다.
