@@ -5,8 +5,8 @@
 > **핵심 아이디어**: Admin 조회는 Databricks/ADLS가 아니라, **Backoffice DB(인덱스) + Admin API**로 서빙한다.
 >
 > **연계 문서**
-> - DB/API 상세 설계: `.ref/backoffice_db_admin_api.md`
-> - 데이터 동기화(OLTP→BO) 설계: `.ref/backoffice_data_project.md`
+> - DB/API 상세 설계: `.specs/backoffice_db_admin_api.md`
+> - 데이터 동기화(OLTP→BO) 설계: `.specs/backoffice_data_project.md`
 > - Lakehouse 스펙(비범위/보조 경로 참고): `.specs/project_specs.md`
 
 ---
@@ -89,7 +89,7 @@
 - Admin API(REST)
 - 모니터링/알림(로그, 메트릭, 트레이싱)
 
-상세는 `.ref/backoffice_db_admin_api.md` 및 `.ref/backoffice_data_project.md` 참고.
+상세는 `.specs/backoffice_db_admin_api.md` 및 `.specs/backoffice_data_project.md` 참고.
 
 ---
 
@@ -137,17 +137,32 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 
 ---
 
-## 9) 단계별 출시 계획(초안)
+## 9) 단계별 출시 계획(개정)
 
-1) **Phase 1 — Read-only MVP**
+### 9.1 기능 성숙 단계(서비스 기능 축)
+
+1) **Phase F1 — Read-only MVP**
    - BO DB 스키마 + backfill + 증분 동기화
    - `GET /admin/tx/{tx_id}` 제공(페어링은 best-effort)
-2) **Phase 2 — Pairing 강화**
+2) **Phase F2 — Pairing 강화**
    - `bo.payment_ledger_pairs` 확정 테이블 도입
    - 페어링 품질 지표/알림
-3) **Phase 3 — SLO 강화**
+3) **Phase F3 — SLO 강화**
    - out-of-order/중복/재처리 정책 확정
    - status 변경 시각/버전 필드 정착
+
+### 9.2 환경 승격 단계(배포/인프라 축)
+
+1) **Phase E1 — Cloud-Test(폐기형, Public 허용)**
+   - 테스트 전용 리소스 생성(Event Hubs/ACA/PostgreSQL)
+   - synthetic 이벤트 기반 E2E 스모크 검증
+   - `Destroy -> Recreate` 재현성 검증
+2) **Phase E2 — Cloud-Secure(운영형, 보안 네트워크)**
+   - 보안용 별도 리소스 생성(인플레이스 전환 금지)
+   - Private Endpoint/VNet/Firewall + Key Vault/Managed Identity 전환
+   - backfill + 증분 동기화 재실행 후 컷오버
+3) **Phase E3 — 운영 자동화**
+   - CI/CD 게이트, 스모크 자동화, 재처리/복구 체계 확정
 
 ---
 
@@ -183,15 +198,19 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 
 > 제품/조직 상황에 따라 AKS/App Service 등으로 대체 가능. 여기서는 관리 난이도가 낮은 구성을 기본으로 둔다.
 
-- 데이터베이스: Azure Database for PostgreSQL(Flexible Server) 또는 Azure SQL(택1)
-- 이벤트 버스: Kafka(Managed) 또는 Azure Event Hubs(Kafka endpoint)(택1)
-- 컨테이너 레지스트리: Azure Container Registry(ACR)
-- 실행 환경: Azure Container Apps(ACA) 또는 AKS(택1)
-  - `bo-admin-api`: HTTP 서비스, autoscale
-  - `bo-sync-consumer`: 장기 실행 consumer, **min replicas 1** 권장(초 단위 요구)
-- 시크릿: Azure Key Vault(+ Managed Identity)
-  - DB 접속 정보, 브로커 접속 정보, OIDC/JWT 검증 관련 설정 등
-- 관측: Application Insights + Log Analytics
+- **Cloud-Test(Phase E1)**
+  - 데이터베이스: Azure Database for PostgreSQL(Flexible Server, test profile)
+  - 이벤트 버스: Azure Event Hubs(Kafka endpoint, isolated namespace)
+  - 실행 환경: Azure Container Apps
+  - 시크릿: SAS/env 주입 우선(테스트 속도 우선)
+  - 관측: 최소 App Insights + Log Analytics 연결
+- **Cloud-Secure(Phase E2)**
+  - 데이터베이스: Azure Database for PostgreSQL(Flexible Server, secure profile)
+  - 이벤트 버스: Event Hubs/Kafka secure profile
+  - 실행 환경: Container Apps 또는 AKS(조직 표준에 맞춤)
+  - 시크릿: Key Vault + Managed Identity 필수
+  - 네트워크: Private Endpoint/VNet/Firewall 기반
+  - 관측: 운영 알림 기준까지 확정된 App Insights + Log Analytics
 
 ### 10.4 환경 분리 / 설정 관리
 

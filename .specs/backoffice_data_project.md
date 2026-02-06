@@ -3,7 +3,7 @@
 > **목적**: OLTP에서 생성/변경되는 `payment_orders`, `transaction_ledger`를 **초 단위**로 Backoffice DB(Serving DB)에 동기화하여 Admin API(FR-ADM-02)가 안정적으로 조회할 수 있게 한다.
 >
 > **연계 문서**
-> - Backoffice DB + Admin API: `.ref/backoffice_db_admin_api.md`
+> - Backoffice DB + Admin API: `.specs/backoffice_db_admin_api.md`
 > - Lakehouse(데이터브릭스) 스펙(참고): `.specs/project_specs.md`
 
 ---
@@ -207,7 +207,7 @@
 
 ## 6) Backoffice DB(Serving DB) 모델(요약)
 
-상세는 `.ref/backoffice_db_admin_api.md` 참고.
+상세는 `.specs/backoffice_db_admin_api.md` 참고.
 
 - `bo.ledger_entries` (PK: `tx_id`)
 - `bo.payment_orders` (PK: `order_id`)
@@ -242,19 +242,27 @@
 
 ---
 
-## 9) 단계별 구현 계획(초안)
+## 9) 단계별 구현 계획(개정)
+
+### 9.1 기능 구현 단계
 
 1) **초기 적재(backfill)**: 최근 N일 `payment_orders`, `transaction_ledger` 덤프 → Backoffice DB 적재
 2) **증분 동기화**: Kafka 이벤트 or CDC 도입, 멱등 upsert
 3) **페어링 테이블 도입**: `bo.payment_ledger_pairs` + 지표/알림
 4) **SLO 강화**: out-of-order/중복/재처리 정책 확정, 회복 자동화
 
+### 9.2 클라우드 승격 단계
+
+1) **Cloud-Test(폐기형)**: 퍼블릭 허용 테스트 리소스에서 synthetic 이벤트로 E2E 검증
+2) **Cloud-Secure(운영형)**: 보안 네트워크/권한 정책 적용 리소스에서 동일 파이프라인 재검증
+3) **승격 게이트**: Cloud-Test 검증 통과 후에만 Cloud-Secure 반영
+
 ---
 
 ## 10) 개발 환경/배포 전략(초안)
 
 > 본 문서는 “동기화(Consumer)” 관점의 개발/운영 전략을 요약한다.  
-> Serving 전체 관점은 `.ref/backoffice_project_specs.md`를 따른다.
+> Serving 전체 관점은 `.specs/backoffice_project_specs.md`를 따른다.
 
 ### 10.1 로컬 개발(Local)
 
@@ -273,11 +281,18 @@
 
 ### 10.2 Azure 배포(권장 레퍼런스)
 
-- 이벤트: Kafka managed 또는 Azure Event Hubs(Kafka endpoint)
-- 실행: Azure Container Apps 또는 AKS
-  - consumer는 초 단위 요구이므로 **min replicas 1** 권장
-- 시크릿: Key Vault(+ Managed Identity)
-- 관측: consumer lag, DLQ rate, end-to-end freshness(필수 알림)
+- **Cloud-Test 프로파일**
+  - 이벤트: Event Hubs(Kafka endpoint), 개인 분리 namespace
+  - 실행: Azure Container Apps
+    - consumer는 **min replicas 1 / max replicas 1** 권장
+  - 시크릿: SAS/env 주입 우선
+  - 관측: 최소 lag/DLQ/freshness 확인
+- **Cloud-Secure 프로파일**
+  - 이벤트: 보안 정책 적용 Event Hubs/Kafka
+  - 실행: Container Apps 또는 AKS(조직 표준)
+  - 시크릿: Key Vault + Managed Identity
+  - 네트워크: Private Endpoint/VNet/Firewall 적용
+  - 관측: 운영 알림 임계치까지 확정
 
 ### 10.3 릴리즈/재처리
 

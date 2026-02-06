@@ -1,8 +1,8 @@
 # Backoffice DB + Admin API 설계 초안 (Serving Layer) — FR-ADM-02
 
 > **연계 문서**
-> - 프로젝트 스펙(Serving): `.ref/backoffice_project_specs.md`
-> - 데이터 프로젝트(동기화): `.ref/backoffice_data_project.md`
+> - 프로젝트 스펙(Serving): `.specs/backoffice_project_specs.md`
+> - 데이터 프로젝트(동기화): `.specs/backoffice_data_project.md`
 > - 요구사항(원본/참고): `.specs/SRS - Software Requirements Specification.md` (FR-ADM-02)
 > - Lakehouse 스펙(비범위/보조 경로 참고): `.specs/project_specs.md`
 >
@@ -241,3 +241,24 @@ Serving 계층도 관측이 필요하다(데이터브릭스 통제 지표와 별
 - `amount_signed`의 SSOT(업스트림 저장 vs 룰 기반 파생) 및 unknown type 처리
 - `related_id`가 여러 도메인을 가리킬 경우 `related_type` 제공 여부
 - 환불/취소/정정(역분개) 엔트리 타입 정의 및 페어링 규칙 확장
+
+---
+
+## 9) 클라우드 개발 단계(테스트 -> 운영형)
+
+### 9.1 Cloud-Test 단계(폐기형)
+
+- 목적: FR-ADM-02 조회 경로(API -> Backoffice DB -> Consumer)를 빠르게 연결 검증
+- 환경: 퍼블릭 엔드포인트 허용, Event Hubs(Kafka) + Container Apps
+- 검증: synthetic 이벤트로 `publish -> consume -> upsert -> API(200/404)` 스모크 확인
+
+### 9.2 Cloud-Secure 단계(운영형)
+
+- 목적: 보안 네트워크/권한 정책이 적용된 최종 아키텍처에서 동일 기능 재검증
+- 환경: 보안용 별도 리소스(인플레이스 전환 금지), Key Vault + Managed Identity
+- 검증: 마이그레이션/백필/증분 동기화 재실행 후 동일 스모크 재확인
+
+### 9.3 전환 원칙
+
+- 테스트 리소스와 운영형 리소스는 분리 생성하고, 검증 완료 후 컷오버한다.
+- Backoffice DB는 파생 저장소이므로 전환 시 재적재(backfill + sync)를 기본 경로로 한다.

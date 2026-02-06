@@ -22,3 +22,8 @@ Last updated: 2026-02-06
 | DEC-101 | OIDC provider | Microsoft Entra ID | `configs/README.md` (OIDC provider section) |
 | DEC-102 | Audit log storage | Persist to `bo.admin_audit_logs` table | `src/db/models.py`, `migrations/20260205_0003_create_admin_audit_logs.py` |
 | DEC-103 | Pairing store | Use Backoffice DB `bo.payment_ledger_pairs` | `migrations/20260205_0001_create_backoffice_schema.py` |
+| DEC-104 | Event Hubs ownership model (Phase 8 test) | Use isolated Event Hubs namespace per owner; do not share team namespace for disposable test environments | `.roadmap/implementation_roadmap.md` (Phase 8 Cloud-Test item) |
+| DEC-105 | Cloud test runtime | Use `Event Hubs (Kafka) + Azure Container Apps` for Phase 8 test stack; production target may remain AKS | `.roadmap/implementation_roadmap.md` (Phase 8 Cloud-Test item) |
+| DEC-106 | Cloud test secret delivery | Use simplest test profile: SAS/env injection first; defer Key Vault+Managed Identity hardening to secure rebuild phase | `.roadmap/implementation_roadmap.md` (Phase 8 Cloud-Test item), `.specs/cloud_migration_rebuild_plan.md` |
+| DEC-107 | Event Hubs baseline contract (Phase 8 test) | Use hubs `ledger.entry.upserted` and `payment.order.upserted`, partition=2 each, retention=3 days, consumer group naming `bo-sync-<env>-<owner>-v1` | `.specs/cloud_migration_rebuild_plan.md`, `.roadmap/implementation_roadmap.md` |
+| DEC-108 | Cloud promotion model | Use two-stage promotion: Cloud-Test(disposable/public) -> Cloud-Secure(separate/secured), no in-place hardening | `.specs/cloud_migration_rebuild_plan.md`, `.roadmap/implementation_roadmap.md`, `.specs/backoffice_project_specs.md` |
