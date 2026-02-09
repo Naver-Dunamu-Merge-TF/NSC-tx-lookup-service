@@ -70,6 +70,19 @@ def _compute_data_lag_sec(context: AdminTxContext) -> int | None:
     return max(0, int(lag.total_seconds()))
 
 
+def _resolve_status_group(status: str | None) -> str:
+    if not status:
+        return "UNKNOWN"
+    normalized = status.strip().upper()
+    if normalized in {"SETTLED", "COMPLETED", "SUCCESS", "SUCCEEDED", "PAID"}:
+        return "SUCCESS"
+    if normalized in {"FAILED", "CANCELLED", "CANCELED", "REJECTED", "DECLINED"}:
+        return "FAIL"
+    if normalized in {"CREATED", "PENDING", "PROCESSING", "AUTHORIZED"}:
+        return "IN_PROGRESS"
+    return "UNKNOWN"
+
+
 def build_admin_tx_response(context: AdminTxContext) -> AdminTxResponse:
     ledger = context.ledger_entry
 
@@ -95,7 +108,7 @@ def build_admin_tx_response(context: AdminTxContext) -> AdminTxResponse:
         amount=ledger.amount,
         amount_signed=ledger.amount_signed,
         status=status,
-        status_group="UNKNOWN",
+        status_group=_resolve_status_group(status),
         sender_wallet_id=sender_wallet_id,
         receiver_wallet_id=receiver_wallet_id,
         related=related,

@@ -107,6 +107,7 @@ def test_build_admin_tx_response_complete_pair() -> None:
     response = build_admin_tx_response(context)
 
     assert response.pairing_status == PairingStatus.COMPLETE
+    assert response.status_group == "SUCCESS"
     assert response.paired_tx_id == "tx-rec"
     assert response.sender_wallet_id == "wallet-pay"
     assert response.receiver_wallet_id == "wallet-rec"
