@@ -1,7 +1,7 @@
 """Create backoffice schema and core tables.
 
 Revision ID: 20260205_0001
-Revises: 
+Revises:
 Create Date: 2026-02-05 09:30:00.000000
 
 """
