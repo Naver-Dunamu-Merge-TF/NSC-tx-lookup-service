@@ -1,6 +1,6 @@
 # Cloud Migration/Rebuild Plan (Test-first)
 
-Last updated: 2026-02-06
+Last updated: 2026-02-09
 
 ## 1. 목적
 
@@ -56,6 +56,23 @@ Phase 8 클라우드 인프라 준비 항목 기준:
 - Stage A -> `.roadmap/implementation_roadmap.md` Phase 8
 - Stage B -> `.roadmap/implementation_roadmap.md` Phase 9
 - Stage C -> `.roadmap/implementation_roadmap.md` Phase 10
+
+## 3.3 공통 명명/태그/가드레일 정책 (지속 적용)
+
+1. 리소스 명명 규칙
+- 하이픈 허용 리소스: `team4-txlookup-<resource>-<owner>-<env>`
+- 하이픈 비허용 리소스(예: ACR, Storage): `team4txlookup<resource><owner><env>`
+- 길이 제한 리소스(Container Apps 계열): `team4-tx-<resource>-<owner>-<env_short>` 형태를 사용하고 이름 길이는 32자 이하여야 한다.
+- `owner`, `env` 토큰은 환경 프로파일 입력값으로 관리한다(정책에 하드코딩하지 않음).
+
+2. 테스트/폐기형 환경 공통 태그 규칙
+- 필수 태그: `env`, `owner`, `project`, `ttl`
+- `ttl`은 `YYYY-MM-DD` 형식을 사용하며 만료 전/만료 시점에 연장 또는 폐기 결정을 수행한다.
+
+3. 공통 가드레일
+- Databricks managed 리소스 그룹 및 하위 리소스는 플랫폼 관리 대상이므로 수동 rename/delete를 금지한다.
+- tx-lookup 테스트 실행은 Event Hubs 개인 분리 namespace를 사용한다(공유 namespace 의존 금지).
+- 파괴 작업은 명명 규칙과 태그 규칙으로 테스트 대상임을 식별한 리소스에만 수행한다.
 
 ## 4. 마이그레이션 전략
 

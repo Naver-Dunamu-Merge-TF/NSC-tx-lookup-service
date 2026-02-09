@@ -1,6 +1,6 @@
 # Phase 8 Cloud-Test Execution Report
 
-Last updated: 2026-02-06
+Last updated: 2026-02-09
 
 ## 1. Scope
 
@@ -24,6 +24,51 @@ Goal:
 - Container Apps env: `team4-tx-caenv-2dt026-t`
 - Container App(API): `team4-tx-api-2dt026-t`
 - Container App(Consumer): `team4-tx-con-2dt026-t`
+
+## 2.1 Cross-repo inventory snapshot (historical)
+
+Primary RG observed set (reference snapshot):
+
+| Name | Type | Notes |
+| --- | --- | --- |
+| `team4-trade-data` | `Microsoft.EventHub/namespaces` | Existing Event Hubs namespace (legacy/shared naming) |
+| `2dtfinalteam4storagetest` | `Microsoft.Storage/storageAccounts` | Existing storage account |
+| `2dt-final-team4-databricks-test` | `Microsoft.Databricks/workspaces` | Databricks workspace used by Databricks repo |
+| `team4-txlookup-law-2dt026-test` | `Microsoft.OperationalInsights/workspaces` | Phase 8 Log Analytics workspace |
+| `team4-txlookup-ai-2dt026-test` | `Microsoft.Insights/components` | Phase 8 Application Insights |
+| `team4-txlookup-2dt026-test` | `Microsoft.EventHub/namespaces` | Phase 8 isolated Event Hubs namespace |
+| `team4-txlookup-pg-2dt026-test` | `Microsoft.DBforPostgreSQL/flexibleServers` | Phase 8 PostgreSQL Flexible Server |
+| `team4txlookup2dt026test` | `Microsoft.ContainerRegistry/registries` | Phase 8 ACR |
+| `team4-tx-caenv-2dt026-t` | `Microsoft.App/managedEnvironments` | Phase 8 Container Apps Environment |
+| `team4-tx-api-2dt026-t` | `Microsoft.App/containerApps` | Phase 8 Admin API app |
+| `team4-tx-con-2dt026-t` | `Microsoft.App/containerApps` | Phase 8 Consumer app |
+
+Databricks managed RG observed set (reference snapshot):
+
+Resource group: `databricks-rg-2dt-final-team4-databricks-test-i75zgjbs3ihjc`
+
+| Name | Type |
+| --- | --- |
+| `unity-catalog-access-connector` | `Microsoft.Databricks/accessConnectors` |
+| `dbstoragesgx3kg7f5lqrq` | `Microsoft.Storage/storageAccounts` |
+| `dbmanagedidentity` | `Microsoft.ManagedIdentity/userAssignedIdentities` |
+| `nat-gw-public-ip` | `Microsoft.Network/publicIPAddresses` |
+| `workers-sg` | `Microsoft.Network/networkSecurityGroups` |
+| `nat-gateway` | `Microsoft.Network/natGateways` |
+| `workers-vnet` | `Microsoft.Network/virtualNetworks` |
+
+## 2.2 Applied Phase 8 naming set
+
+- Event Hubs namespace: `team4-txlookup-2dt026-test`
+- Event hubs: `ledger.entry.upserted`, `payment.order.upserted`
+- Consumer group: `bo-sync-test-2dt026-v1`
+- PostgreSQL Flexible Server: `team4-txlookup-pg-2dt026-test`
+- Azure Container Registry: `team4txlookup2dt026test`
+- Container Apps Environment: `team4-tx-caenv-2dt026-t`
+- Container App (API): `team4-tx-api-2dt026-t`
+- Container App (Consumer): `team4-tx-con-2dt026-t`
+- Log Analytics Workspace: `team4-txlookup-law-2dt026-test`
+- Application Insights: `team4-txlookup-ai-2dt026-test`
 
 ## 3. Deployment profile
 
@@ -67,3 +112,4 @@ Container build assets:
 
 - Container Apps names were shortened from the original naming proposal to meet Azure length constraints.
 - RG lock behavior is retained; Phase 9 secure environment should assume separate, lock-aware deployment policy.
+- Persistent naming/tag/guardrail policy was moved to `.specs/cloud_migration_rebuild_plan.md` section `3.3`.

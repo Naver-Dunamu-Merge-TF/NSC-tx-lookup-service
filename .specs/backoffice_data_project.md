@@ -37,7 +37,7 @@
 
 - 목표: Serving DB에 `amount_signed`를 **가능하면 저장**
   - 업스트림이 제공하면 SSOT로 저장
-  - 미제공 시 `entry_type` 룰로 파생(룰은 코드/테이블로 관리)
+  - 미제공 시 `NULL`로 저장(Consumer 파생은 운영 합의 후 고려) — 결정: `DEC-204` (`.specs/decision_open_items.md`)
 
 ---
 
@@ -220,7 +220,7 @@
 ### 7.1 동기화/지연
 
 - consumer lag(토픽/파티션)
-- end-to-end freshness: `now - max(occurred_at)` / `now - max(event_time)`
+- end-to-end freshness: `now - max(occurred_at)` / `now - max(event_time)` (본 프로젝트 기준: ledger=`event_time`, order=`updated_at||created_at`) — 결정: `DEC-205` (`.specs/decision_open_items.md`)
 - 처리량(QPS), error rate, DLQ rate
 
 ### 7.2 데이터 커버리지/품질

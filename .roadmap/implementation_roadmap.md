@@ -5,7 +5,6 @@
 - `.specs/backoffice_db_admin_api.md`
 - `.specs/backoffice_data_project.md`
 - `.specs/cloud_migration_rebuild_plan.md`
-- `.specs/cloud_test_resource_naming.md`
 - `README.md`
 
 ## Phase 1 — 리포지토리 골격 + 공통 기반

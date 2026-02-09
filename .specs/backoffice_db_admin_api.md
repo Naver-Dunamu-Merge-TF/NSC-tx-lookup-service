@@ -82,7 +82,7 @@
   - `entry_type` (string)
   - `amount` (decimal)
   - `amount_signed` (decimal, **가능하면 저장**)  
-    - 업스트림이 제공하지 않으면 `entry_type` 룰로 파생(단, 룰은 코드 하드코딩 금지)
+    - 업스트림이 제공하지 않으면 `NULL`로 저장(Consumer 파생은 운영 합의 후 고려) — 결정: `DEC-204` (`.specs/decision_open_items.md`)
   - `related_id` (string, index)
   - `related_type` (string, nullable)
   - `event_time` (timestamp, index)
@@ -191,7 +191,7 @@ OLTP `payment_orders`를 서빙 관점으로 복제.
 - `tx_id` 미존재: **404**
 - 페어링 불완전: **200 + `pairing_status=INCOMPLETE`**, `paired_tx_id`/`receiver_wallet_id`는 NULL 허용
 - `related_id` 자체가 없으면: `pairing_status=UNKNOWN`
-- `status`는 **원문값 유지**, `status_group`는 내부 매핑이 있을 때만 제공(없으면 `UNKNOWN`)
+- `status`는 **원문값 유지**, `status_group`는 v1 매핑표로 계산하고 매핑이 없으면 `UNKNOWN` — 결정: `DEC-206` (`.specs/decision_open_items.md`)
 - `data_lag_sec`는 `now - max(ingested_at, event_time)`로 계산(가용한 값 기준)
 
 #### (권장) `GET /admin/payment-orders/{order_id}`

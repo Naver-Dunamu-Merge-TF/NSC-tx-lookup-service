@@ -74,7 +74,7 @@
 
 - **`tx_id` 의미**: 원장 엔트리(행) ID로 고정 → 페어링은 `related_id` 기준(방법 2)
 - **`related_id/related_type`**: 기본은 `payment_orders.order_id`; `related_type` 없으면 조인 성공 시 `PAYMENT_ORDER`, 실패 시 `UNKNOWN`
-- **`status` 매핑**: 원문 상태는 그대로 노출, `status_group(SUCCESS/FAIL/IN_PROGRESS)`는 **매핑 확정 전까지 `UNKNOWN`**
+- **`status` 매핑**: 원문 상태는 그대로 노출, `status_group(SUCCESS/FAIL/IN_PROGRESS/UNKNOWN)`는 v1 매핑표로 계산한다 — 결정: `DEC-206` (`.specs/decision_open_items.md`)
 - **`updated_at/version` 부재 시**: `ingested_at` 기준 LWW로 수렴 + `version_missing_cnt` 지표 관측
 - **SLO/보안 기본값**: 데이터 신선도 p95 5초, API p95 200ms, RBAC(`ADMIN_READ`, `ADMIN_AUDIT`) + 감사로그 + PII 최소화
 
