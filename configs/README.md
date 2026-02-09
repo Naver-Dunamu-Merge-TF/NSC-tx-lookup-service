@@ -20,7 +20,9 @@ Required variables (current skeleton)
 - `KAFKA_GROUP_ID`: consumer group id
 - `LEDGER_TOPIC`: ledger entry topic
 - `PAYMENT_ORDER_TOPIC`: payment order topic
-- `DLQ_PATH`: local DLQ file path
+- `DLQ_BACKEND`: `file` or `db` (default: `file` for local/dev, `db` for prod)
+- `DLQ_PATH`: DLQ file path (when `DLQ_BACKEND=file`)
+- `DLQ_RETENTION_DAYS`: DLQ retention window in days (default `14`, when `DLQ_BACKEND=db`)
 - `CONSUMER_POLL_TIMEOUT_MS`: Kafka poll timeout in milliseconds
 - `CONSUMER_OFFSET_RESET`: Kafka offset reset policy (`earliest`/`latest`)
 - `AUTH_MODE`: `disabled` or `oidc`
@@ -28,8 +30,8 @@ Required variables (current skeleton)
 - `AUTH_AUDIENCE`: expected audience
 - `AUTH_JWKS_URL`: JWKS endpoint
 - `AUTH_ALGORITHM`: JWT algorithm (default `RS256`)
-- `AUTH_ROLES_CLAIM`: roles claim name (default `roles`, comma-separated allowed)
-- `AUTH_ACTOR_ID_CLAIMS`: actor id claim priority list (default `sub`)
+- `AUTH_ROLES_CLAIM`: roles claim name (default `roles,scp`, comma-separated allowed)
+- `AUTH_ACTOR_ID_CLAIMS`: actor id claim priority list (default `oid,sub`)
 - `AUDIT_MASK_QUERY_KEYS`: query keys to mask in audit logs
 - `DB_POOL_SIZE`: SQLAlchemy pool size (default `5`)
 - `DB_MAX_OVERFLOW`: extra overflow connections (default `10`)

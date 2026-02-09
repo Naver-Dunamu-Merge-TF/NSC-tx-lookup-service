@@ -112,3 +112,31 @@ class AdminAuditLog(Base):
         sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
     )
     duration_ms: Mapped[int | None] = mapped_column(sa.Integer)
+
+
+class ConsumerDlqEvent(Base):
+    __tablename__ = "consumer_dlq_events"
+    __table_args__ = (
+        sa.Index("ix_bo_consumer_dlq_events_ingested_at", "ingested_at"),
+        sa.Index("ix_bo_consumer_dlq_events_topic", "topic"),
+        sa.Index(
+            "ix_bo_consumer_dlq_events_topic_ingested_at",
+            "topic",
+            "ingested_at",
+        ),
+        {"schema": "bo"},
+    )
+
+    dlq_id: Mapped[int] = mapped_column(
+        sa.BigInteger, sa.Identity(always=True), primary_key=True
+    )
+    topic: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    partition: Mapped[int | None] = mapped_column(sa.Integer)
+    offset: Mapped[int | None] = mapped_column(sa.BigInteger)
+    key: Mapped[str | None] = mapped_column(sa.Text)
+    payload: Mapped[str | None] = mapped_column(sa.Text)
+    error: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    correlation_id: Mapped[str | None] = mapped_column(sa.Text)
+    ingested_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+    )

@@ -8,6 +8,7 @@ from typing import Mapping
 ALLOWED_ENVS = {"local", "dev", "prod"}
 ALLOWED_AUTH_MODES = {"disabled", "oidc"}
 ALLOWED_KAFKA_SECURITY_PROTOCOLS = {"PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL"}
+ALLOWED_DLQ_BACKENDS = {"file", "db"}
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,8 @@ class AppConfig:
     ledger_topic: str
     payment_order_topic: str
     dlq_path: str
+    dlq_backend: str
+    dlq_retention_days: int
     consumer_poll_timeout_ms: int
     consumer_offset_reset: str
     auth_mode: str
@@ -95,6 +98,13 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
             "when KAFKA_SECURITY_PROTOCOL uses SASL"
         )
 
+    dlq_backend_default = "db" if app_env == "prod" else "file"
+    dlq_backend = _get_env(source, "DLQ_BACKEND", dlq_backend_default).lower()
+    if dlq_backend not in ALLOWED_DLQ_BACKENDS:
+        raise ValueError(
+            f"DLQ_BACKEND must be one of {sorted(ALLOWED_DLQ_BACKENDS)} (got {dlq_backend!r})"
+        )
+
     return AppConfig(
         app_env=app_env,
         log_level=_get_env(source, "LOG_LEVEL", "INFO"),
@@ -114,6 +124,8 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
             source, "PAYMENT_ORDER_TOPIC", "payment.order.upserted"
         ),
         dlq_path=_get_env(source, "DLQ_PATH", "./dlq/failed_events.jsonl"),
+        dlq_backend=dlq_backend,
+        dlq_retention_days=_get_int(source, "DLQ_RETENTION_DAYS", 14),
         consumer_poll_timeout_ms=_get_int(source, "CONSUMER_POLL_TIMEOUT_MS", 1000),
         consumer_offset_reset=_get_env(
             source, "CONSUMER_OFFSET_RESET", "earliest"
@@ -123,9 +135,9 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
         auth_audience=_get_env(source, "AUTH_AUDIENCE", ""),
         auth_jwks_url=_get_env(source, "AUTH_JWKS_URL", ""),
         auth_algorithm=_get_env(source, "AUTH_ALGORITHM", "RS256"),
-        auth_roles_claim=_get_env(source, "AUTH_ROLES_CLAIM", "roles"),
+        auth_roles_claim=_get_env(source, "AUTH_ROLES_CLAIM", "roles,scp"),
         auth_actor_id_claims=_get_env(
-            source, "AUTH_ACTOR_ID_CLAIMS", "sub"
+            source, "AUTH_ACTOR_ID_CLAIMS", "oid,sub"
         ),
         audit_mask_query_keys=_get_env(
             source, "AUDIT_MASK_QUERY_KEYS", "access_token,token"

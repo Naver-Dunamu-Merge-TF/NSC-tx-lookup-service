@@ -19,7 +19,7 @@ from src.common.observability import (
     extract_correlation_id_from_headers,
     extract_correlation_id_from_payload,
 )
-from src.consumer.dlq import write_dlq
+from src.consumer.dlq import prune_dlq_db, write_dlq_db, write_dlq_file
 from src.consumer.events import (
     EventValidationError,
     LedgerEntryUpserted,
@@ -40,6 +40,34 @@ from src.db.session import session_scope
 
 logger = logging.getLogger(__name__)
 _METRICS_STARTED = False
+
+
+def _maybe_prune_dlq() -> None:
+    config = load_config()
+    if config.dlq_backend != "db":
+        return
+    try:
+        with session_scope() as session:
+            pruned = prune_dlq_db(session, config.dlq_retention_days)
+        if pruned:
+            logger.info("Pruned %s old DLQ events (retention=%sd)", pruned, config.dlq_retention_days)
+    except Exception:
+        logger.exception("Failed to prune DLQ events")
+
+
+def _write_dlq_payload(payload: dict[str, Any]) -> None:
+    config = load_config()
+    if config.dlq_backend == "db":
+        try:
+            with session_scope() as session:
+                write_dlq_db(session, payload)
+            return
+        except Exception:
+            logger.exception("Failed to write DLQ to DB; falling back to file")
+    try:
+        write_dlq_file(config.dlq_path, payload)
+    except Exception:
+        logger.exception("Failed to write DLQ to file")
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:
@@ -130,6 +158,7 @@ def run_consumer(
 ) -> None:
     config = load_config()
     _start_metrics_server()
+    _maybe_prune_dlq()
     consumer = _build_consumer()
     topics = [config.ledger_topic, config.payment_order_topic]
     consumer.subscribe(topics)
@@ -201,7 +230,7 @@ def run_consumer(
                     "correlation_id": correlation_id,
                     "ingested_at": datetime.now(timezone.utc).isoformat(),
                 }
-                write_dlq(config.dlq_path, dlq_payload)
+                _write_dlq_payload(dlq_payload)
                 logger.exception("Failed to process message; sent to DLQ")
                 consumer.commit(msg)
     except KeyboardInterrupt:
@@ -218,6 +247,7 @@ def run_backfill(
 ) -> None:
     _start_metrics_server()
     config = load_config()
+    _maybe_prune_dlq()
     counter = VersionMissingCounter()
     pairing_metrics = PairingMetrics()
     freshness = FreshnessTracker()
@@ -254,15 +284,14 @@ def run_backfill(
             except Exception as exc:
                 record_consumer_message("backfill-ledger", "error")
                 record_dlq("backfill-ledger")
-                write_dlq(
-                    config.dlq_path,
+                _write_dlq_payload(
                     {
                         "topic": "backfill-ledger",
                         "payload": payload,
                         "error": str(exc),
                         "correlation_id": extract_correlation_id_from_payload(payload),
                         "ingested_at": datetime.now(timezone.utc).isoformat(),
-                    },
+                    }
                 )
                 logger.exception("Backfill ledger failed; sent to DLQ")
 
@@ -289,15 +318,14 @@ def run_backfill(
             except Exception as exc:
                 record_consumer_message("backfill-payment-order", "error")
                 record_dlq("backfill-payment-order")
-                write_dlq(
-                    config.dlq_path,
+                _write_dlq_payload(
                     {
                         "topic": "backfill-payment-order",
                         "payload": payload,
                         "error": str(exc),
                         "correlation_id": extract_correlation_id_from_payload(payload),
                         "ingested_at": datetime.now(timezone.utc).isoformat(),
-                    },
+                    }
                 )
                 logger.exception("Backfill payment order failed; sent to DLQ")
 
