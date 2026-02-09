@@ -42,9 +42,7 @@ def build_audit_fields(
     client = request.client
     config = load_config()
     mask_keys = [
-        key.strip()
-        for key in config.audit_mask_query_keys.split(",")
-        if key.strip()
+        key.strip() for key in config.audit_mask_query_keys.split(",") if key.strip()
     ]
     query = mask_query(request.url.query, mask_keys)
 

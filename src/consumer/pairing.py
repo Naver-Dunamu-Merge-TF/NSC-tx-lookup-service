@@ -112,9 +112,11 @@ def update_pairing_for_related_id(
     from src.db.models import LedgerEntry, PaymentLedgerPair, PaymentOrder
     from src.db.upsert import latest_wins_upsert
 
-    ledger_entries = session.execute(
-        select(LedgerEntry).where(LedgerEntry.related_id == related_id)
-    ).scalars().all()
+    ledger_entries = (
+        session.execute(select(LedgerEntry).where(LedgerEntry.related_id == related_id))
+        .scalars()
+        .all()
+    )
     if not ledger_entries:
         return None
 
@@ -167,8 +169,6 @@ def update_pairing_for_related_id(
         "updated_at": ingested_at,
         "ingested_at": ingested_at,
     }
-    stmt = latest_wins_upsert(
-        PaymentLedgerPair.__table__, values, ["payment_order_id"]
-    )
+    stmt = latest_wins_upsert(PaymentLedgerPair.__table__, values, ["payment_order_id"])
     session.execute(stmt)
     return snapshot

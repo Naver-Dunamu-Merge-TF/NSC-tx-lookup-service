@@ -19,6 +19,7 @@ def fetch_admin_tx_context(session: "Session", tx_id: str) -> AdminTxContext | N
     from sqlalchemy import select
 
     from src.db.models import LedgerEntry, PaymentLedgerPair, PaymentOrder
+
     stmt = (
         select(LedgerEntry, PaymentOrder, PaymentLedgerPair)
         .outerjoin(PaymentOrder, PaymentOrder.order_id == LedgerEntry.related_id)

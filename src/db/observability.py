@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_identifier(value: str) -> str:
-    return value.strip().strip("\"").strip("`")
+    return value.strip().strip('"').strip("`")
 
 
 def _parse_statement(statement: str) -> tuple[str, str]:
@@ -68,12 +68,16 @@ def install_sqlalchemy_observability(engine: Engine) -> None:
     slow_sec = slow_ms / 1000.0
 
     @event.listens_for(engine, "before_cursor_execute")
-    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    def before_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
         context._query_start_time = time.perf_counter()
 
     @event.listens_for(engine, "after_cursor_execute")
     def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-        duration = time.perf_counter() - getattr(context, "_query_start_time", time.perf_counter())
+        duration = time.perf_counter() - getattr(
+            context, "_query_start_time", time.perf_counter()
+        )
         op, table = _parse_statement(statement)
         observe_db_query(op, table, duration, success=True)
 

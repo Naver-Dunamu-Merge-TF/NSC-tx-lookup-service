@@ -25,8 +25,12 @@ class LedgerEntry(Base):
     amount_signed: Mapped[Decimal | None] = mapped_column(sa.Numeric(18, 2))
     related_id: Mapped[str | None] = mapped_column(sa.Text)
     related_type: Mapped[str | None] = mapped_column(sa.Text)
-    event_time: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    event_time: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False
+    )
     updated_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     source_version: Mapped[int | None] = mapped_column(sa.BigInteger)
     ingested_at: Mapped[datetime] = mapped_column(
@@ -49,7 +53,9 @@ class PaymentOrder(Base):
     merchant_name: Mapped[str | None] = mapped_column(sa.Text)
     amount: Mapped[Decimal] = mapped_column(sa.Numeric(18, 2), nullable=False)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False
+    )
     updated_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     source_version: Mapped[int | None] = mapped_column(sa.BigInteger)
     ingested_at: Mapped[datetime] = mapped_column(
@@ -87,9 +93,7 @@ class AdminAuditLog(Base):
         sa.Index("ix_bo_admin_audit_logs_requested_at", "requested_at"),
         sa.Index("ix_bo_admin_audit_logs_resource_id", "resource_id"),
         sa.Index("ix_bo_admin_audit_logs_actor_id", "actor_id"),
-        sa.Index(
-            "ix_bo_admin_audit_logs_resource_time", "resource_id", "requested_at"
-        ),
+        sa.Index("ix_bo_admin_audit_logs_resource_time", "resource_id", "requested_at"),
         {"schema": "bo"},
     )
 

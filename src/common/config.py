@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from typing import Mapping
-
 
 ALLOWED_ENVS = {"local", "dev", "prod"}
 ALLOWED_AUTH_MODES = {"disabled", "oidc"}
@@ -127,18 +126,14 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
         dlq_backend=dlq_backend,
         dlq_retention_days=_get_int(source, "DLQ_RETENTION_DAYS", 14),
         consumer_poll_timeout_ms=_get_int(source, "CONSUMER_POLL_TIMEOUT_MS", 1000),
-        consumer_offset_reset=_get_env(
-            source, "CONSUMER_OFFSET_RESET", "earliest"
-        ),
+        consumer_offset_reset=_get_env(source, "CONSUMER_OFFSET_RESET", "earliest"),
         auth_mode=auth_mode,
         auth_issuer=_get_env(source, "AUTH_ISSUER", ""),
         auth_audience=_get_env(source, "AUTH_AUDIENCE", ""),
         auth_jwks_url=_get_env(source, "AUTH_JWKS_URL", ""),
         auth_algorithm=_get_env(source, "AUTH_ALGORITHM", "RS256"),
         auth_roles_claim=_get_env(source, "AUTH_ROLES_CLAIM", "roles,scp"),
-        auth_actor_id_claims=_get_env(
-            source, "AUTH_ACTOR_ID_CLAIMS", "oid,sub"
-        ),
+        auth_actor_id_claims=_get_env(source, "AUTH_ACTOR_ID_CLAIMS", "oid,sub"),
         audit_mask_query_keys=_get_env(
             source, "AUDIT_MASK_QUERY_KEYS", "access_token,token"
         ),

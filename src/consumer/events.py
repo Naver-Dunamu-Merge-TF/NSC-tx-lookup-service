@@ -23,7 +23,11 @@ def _parse_datetime(value: Any, field: str) -> datetime:
     if value is None:
         raise EventValidationError(f"{field} is required")
     if isinstance(value, datetime):
-        return value.astimezone(timezone.utc) if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return (
+            value.astimezone(timezone.utc)
+            if value.tzinfo
+            else value.replace(tzinfo=timezone.utc)
+        )
     if not isinstance(value, str):
         raise EventValidationError(f"{field} must be ISO-8601 string (got {value!r})")
     text = value.strip()
@@ -32,8 +36,14 @@ def _parse_datetime(value: Any, field: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError as exc:
-        raise EventValidationError(f"{field} must be ISO-8601 string (got {value!r})") from exc
-    return parsed.astimezone(timezone.utc) if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        raise EventValidationError(
+            f"{field} must be ISO-8601 string (got {value!r})"
+        ) from exc
+    return (
+        parsed.astimezone(timezone.utc)
+        if parsed.tzinfo
+        else parsed.replace(tzinfo=timezone.utc)
+    )
 
 
 def _parse_optional_datetime(value: Any) -> datetime | None:
@@ -80,15 +90,25 @@ class LedgerEntryUpserted:
         amount = _parse_decimal(payload.get("amount"), "amount")
         amount_signed = payload.get("amount_signed")
         parsed_amount_signed = (
-            _parse_decimal(amount_signed, "amount_signed") if amount_signed is not None else None
+            _parse_decimal(amount_signed, "amount_signed")
+            if amount_signed is not None
+            else None
         )
 
         related_id = payload.get("related_id")
         related_type = payload.get("related_type")
 
-        event_time_value = payload.get("event_time") or payload.get("source_created_at") or payload.get("created_at")
+        event_time_value = (
+            payload.get("event_time")
+            or payload.get("source_created_at")
+            or payload.get("created_at")
+        )
         event_time = _parse_datetime(event_time_value, "event_time")
-        created_value = payload.get("source_created_at") or payload.get("created_at") or payload.get("event_time")
+        created_value = (
+            payload.get("source_created_at")
+            or payload.get("created_at")
+            or payload.get("event_time")
+        )
         created_at = _parse_datetime(created_value, "created_at")
 
         updated_at = _parse_optional_datetime(payload.get("updated_at"))
@@ -102,7 +122,9 @@ class LedgerEntryUpserted:
             amount=amount,
             amount_signed=parsed_amount_signed,
             related_id=str(related_id).strip() if related_id is not None else None,
-            related_type=str(related_type).strip() if related_type is not None else None,
+            related_type=(
+                str(related_type).strip() if related_type is not None else None
+            ),
             event_time=event_time,
             created_at=created_at,
             updated_at=updated_at,
@@ -143,7 +165,9 @@ class PaymentOrderUpserted:
         return cls(
             order_id=order_id,
             user_id=str(user_id).strip() if user_id is not None else None,
-            merchant_name=str(merchant_name).strip() if merchant_name is not None else None,
+            merchant_name=(
+                str(merchant_name).strip() if merchant_name is not None else None
+            ),
             amount=amount,
             status=status,
             created_at=created_at,

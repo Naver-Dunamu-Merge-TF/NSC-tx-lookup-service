@@ -14,9 +14,9 @@ def _resolve_related_type(context: AdminTxContext) -> str:
     return "UNKNOWN"
 
 
-def _resolve_pairing(context: AdminTxContext) -> tuple[
-    PairingStatus, str | None, str | None, str | None
-]:
+def _resolve_pairing(
+    context: AdminTxContext,
+) -> tuple[PairingStatus, str | None, str | None, str | None]:
     ledger = context.ledger_entry
     related_type = _resolve_related_type(context)
 
@@ -86,8 +86,8 @@ def _resolve_status_group(status: str | None) -> str:
 def build_admin_tx_response(context: AdminTxContext) -> AdminTxResponse:
     ledger = context.ledger_entry
 
-    pairing_status, paired_tx_id, sender_wallet_id, receiver_wallet_id = _resolve_pairing(
-        context
+    pairing_status, paired_tx_id, sender_wallet_id, receiver_wallet_id = (
+        _resolve_pairing(context)
     )
 
     related = None

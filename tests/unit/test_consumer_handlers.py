@@ -25,7 +25,9 @@ def _config():
     )
 
 
-def test_handle_payload_ledger_topic(monkeypatch: pytest.MonkeyPatch, transaction_ledger_happy_rows):
+def test_handle_payload_ledger_topic(
+    monkeypatch: pytest.MonkeyPatch, transaction_ledger_happy_rows
+):
     config = _config()
     monkeypatch.setattr(consumer_main, "load_config", lambda: config)
     monkeypatch.setattr(consumer_main, "session_scope", _fake_session_scope)
@@ -54,8 +56,12 @@ def test_handle_payload_ledger_topic(monkeypatch: pytest.MonkeyPatch, transactio
     pairing_metrics = PairingMetrics(log_every=1)
 
     payload = transaction_ledger_happy_rows[0]
-    consumer_main._handle_payload(config.ledger_topic, payload, counter, pairing_metrics)
-    consumer_main._handle_payload(config.ledger_topic, payload, counter, pairing_metrics)
+    consumer_main._handle_payload(
+        config.ledger_topic, payload, counter, pairing_metrics
+    )
+    consumer_main._handle_payload(
+        config.ledger_topic, payload, counter, pairing_metrics
+    )
 
     assert calls["event"].tx_id == payload["tx_id"]
     assert counter.processed == 2
@@ -64,7 +70,9 @@ def test_handle_payload_ledger_topic(monkeypatch: pytest.MonkeyPatch, transactio
     assert pairing_metrics.incomplete == 2
 
 
-def test_handle_payload_payment_order_topic(monkeypatch: pytest.MonkeyPatch, payment_orders_happy_rows):
+def test_handle_payload_payment_order_topic(
+    monkeypatch: pytest.MonkeyPatch, payment_orders_happy_rows
+):
     config = _config()
     monkeypatch.setattr(consumer_main, "load_config", lambda: config)
     monkeypatch.setattr(consumer_main, "session_scope", _fake_session_scope)
@@ -81,7 +89,9 @@ def test_handle_payload_payment_order_topic(monkeypatch: pytest.MonkeyPatch, pay
     pairing_metrics = PairingMetrics(log_every=1)
 
     payload = payment_orders_happy_rows[0]
-    consumer_main._handle_payload(config.payment_order_topic, payload, counter, pairing_metrics)
+    consumer_main._handle_payload(
+        config.payment_order_topic, payload, counter, pairing_metrics
+    )
 
     assert calls["event"].order_id == payload["order_id"]
     assert counter.processed == 1
@@ -110,4 +120,6 @@ def test_handle_payload_invalid_payload(monkeypatch: pytest.MonkeyPatch):
     pairing_metrics = PairingMetrics()
 
     with pytest.raises(EventValidationError):
-        consumer_main._handle_payload(config.ledger_topic, {"wallet_id": "w1"}, counter, pairing_metrics)
+        consumer_main._handle_payload(
+            config.ledger_topic, {"wallet_id": "w1"}, counter, pairing_metrics
+        )

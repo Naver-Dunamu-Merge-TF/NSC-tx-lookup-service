@@ -48,7 +48,9 @@ def test_latest_wins_upsert_respects_updated_at(db_session, cleanup_test_rows):
     assert row.status == "NEW"
 
 
-def test_latest_wins_upsert_uses_version_when_updated_missing(db_session, cleanup_test_rows):
+def test_latest_wins_upsert_uses_version_when_updated_missing(
+    db_session, cleanup_test_rows
+):
     order_id = f"{cleanup_test_rows}-order-version"
     first = {
         "order_id": order_id,

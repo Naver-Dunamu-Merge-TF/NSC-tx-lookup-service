@@ -50,7 +50,11 @@ def _maybe_prune_dlq() -> None:
         with session_scope() as session:
             pruned = prune_dlq_db(session, config.dlq_retention_days)
         if pruned:
-            logger.info("Pruned %s old DLQ events (retention=%sd)", pruned, config.dlq_retention_days)
+            logger.info(
+                "Pruned %s old DLQ events (retention=%sd)",
+                pruned,
+                config.dlq_retention_days,
+            )
     except Exception:
         logger.exception("Failed to prune DLQ events")
 
@@ -77,7 +81,11 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     parsed = datetime.fromisoformat(text)
-    return parsed.astimezone(timezone.utc) if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return (
+        parsed.astimezone(timezone.utc)
+        if parsed.tzinfo
+        else parsed.replace(tzinfo=timezone.utc)
+    )
 
 
 def _iter_json_lines(path: Path) -> Iterable[dict[str, Any]]:
@@ -201,7 +209,9 @@ def run_consumer(
                 if correlation_id is None:
                     correlation_id = extract_correlation_id_from_payload(payload)
                 with correlation_context(correlation_id):
-                    _handle_payload(msg.topic(), payload, counter, pairing_metrics, freshness)
+                    _handle_payload(
+                        msg.topic(), payload, counter, pairing_metrics, freshness
+                    )
                     try:
                         _low, high = consumer.get_watermark_offsets(
                             msg.topic(), msg.partition(), cached=False
@@ -223,9 +233,11 @@ def run_consumer(
                     "partition": msg.partition(),
                     "offset": msg.offset(),
                     "key": msg.key().decode("utf-8") if msg.key() else None,
-                    "payload": msg.value().decode("utf-8", errors="replace")
-                    if msg.value()
-                    else None,
+                    "payload": (
+                        msg.value().decode("utf-8", errors="replace")
+                        if msg.value()
+                        else None
+                    ),
                     "error": str(exc),
                     "correlation_id": correlation_id,
                     "ingested_at": datetime.now(timezone.utc).isoformat(),

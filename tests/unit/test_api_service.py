@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-
-from dataclasses import dataclass
 
 from src.api.schemas import PairingStatus
 from src.api.service import build_admin_tx_response
@@ -54,9 +53,7 @@ class PaymentLedgerPairStub:
 
 
 def _dt(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
-        timezone.utc
-    )
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
 def test_build_admin_tx_response_complete_pair() -> None:

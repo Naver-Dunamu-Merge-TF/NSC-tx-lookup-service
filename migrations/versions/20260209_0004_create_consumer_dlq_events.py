@@ -8,8 +8,8 @@ Create Date: 2026-02-09 16:20:00.000000
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20260209_0004"
@@ -77,4 +77,3 @@ def downgrade() -> None:
         schema="bo",
     )
     op.drop_table("consumer_dlq_events", schema="bo")
-

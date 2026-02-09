@@ -31,7 +31,9 @@ def get_engine():
 def get_session_factory() -> sessionmaker[Session]:
     global _SESSION_FACTORY
     if _SESSION_FACTORY is None:
-        _SESSION_FACTORY = sessionmaker(bind=get_engine(), autocommit=False, autoflush=False)
+        _SESSION_FACTORY = sessionmaker(
+            bind=get_engine(), autocommit=False, autoflush=False
+        )
     return _SESSION_FACTORY
 
 

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from src.consumer.events import EventValidationError, LedgerEntryUpserted, PaymentOrderUpserted
+from src.consumer.events import (
+    EventValidationError,
+    LedgerEntryUpserted,
+    PaymentOrderUpserted,
+)
 
 
 def test_ledger_entry_from_dict_happy(transaction_ledger_happy_rows):

@@ -48,7 +48,9 @@ def _normalize_roles(value: object) -> list[str]:
     return []
 
 
-def extract_roles(claims: Mapping[str, object], role_claims: Iterable[str]) -> list[str]:
+def extract_roles(
+    claims: Mapping[str, object], role_claims: Iterable[str]
+) -> list[str]:
     roles: list[str] = []
     for claim in role_claims:
         raw = claims.get(claim)
@@ -64,7 +66,9 @@ def extract_roles(claims: Mapping[str, object], role_claims: Iterable[str]) -> l
     return ordered
 
 
-def extract_actor_id(claims: Mapping[str, object], actor_claims: Iterable[str]) -> str | None:
+def extract_actor_id(
+    claims: Mapping[str, object], actor_claims: Iterable[str]
+) -> str | None:
     for claim in actor_claims:
         value = claims.get(claim)
         if isinstance(value, str) and value.strip():
@@ -120,6 +124,7 @@ def _extract_bearer(request: Request) -> str:
 
 def require_admin_read(request: Request) -> ActorContext:
     from fastapi import HTTPException
+
     config = load_config()
     if config.auth_mode == "disabled":
         actor_id = request.headers.get("X-Actor-Id")

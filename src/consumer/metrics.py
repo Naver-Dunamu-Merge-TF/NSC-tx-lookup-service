@@ -140,8 +140,7 @@ class VersionMissingCounter:
 
     def summary(self) -> str:
         return (
-            f"processed={self.processed} "
-            f"version_missing_cnt={self.missing_version}"
+            f"processed={self.processed} " f"version_missing_cnt={self.missing_version}"
         )
 
 
@@ -161,17 +160,15 @@ class PairingMetrics:
             PAIR_INCOMPLETE_TOTAL.inc()
             if incomplete_age_sec is not None:
                 self.incomplete_age_sum += incomplete_age_sec
-                self.incomplete_age_max = max(self.incomplete_age_max, incomplete_age_sec)
+                self.incomplete_age_max = max(
+                    self.incomplete_age_max, incomplete_age_sec
+                )
                 PAIR_INCOMPLETE_AGE_SECONDS.observe(incomplete_age_sec)
         return self.total % self.log_every == 0
 
     def summary(self) -> str:
         ratio = (self.incomplete / self.total) if self.total else 0.0
-        avg_age = (
-            self.incomplete_age_sum / self.incomplete
-            if self.incomplete
-            else 0.0
-        )
+        avg_age = self.incomplete_age_sum / self.incomplete if self.incomplete else 0.0
         return (
             f"pair_total={self.total} "
             f"pair_incomplete={self.incomplete} "

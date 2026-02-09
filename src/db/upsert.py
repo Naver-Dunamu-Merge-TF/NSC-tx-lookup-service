@@ -45,7 +45,9 @@ def latest_wins_upsert(
                 and_(
                     incoming_updated.is_(None),
                     incoming_version.isnot(None),
-                    or_(existing_version.is_(None), incoming_version >= existing_version),
+                    or_(
+                        existing_version.is_(None), incoming_version >= existing_version
+                    ),
                 )
             )
 

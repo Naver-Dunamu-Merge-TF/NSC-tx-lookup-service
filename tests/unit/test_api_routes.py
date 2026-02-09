@@ -31,7 +31,9 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     api_main.app.dependency_overrides = {}
 
 
-def test_get_admin_tx_success(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+def test_get_admin_tx_success(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
     expected = {
         "tx_id": "tx-123",
         "event_time": datetime(2026, 2, 5, 1, 0, 0, tzinfo=timezone.utc).isoformat(),

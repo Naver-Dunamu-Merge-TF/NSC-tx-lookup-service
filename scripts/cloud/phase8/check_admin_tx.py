@@ -26,11 +26,17 @@ def main() -> int:
 
     if response.status_code == 200:
         payload = response.json()
-        if args.expect_paired is not None and payload.get("paired_tx_id") != args.expect_paired:
+        if (
+            args.expect_paired is not None
+            and payload.get("paired_tx_id") != args.expect_paired
+        ):
             raise SystemExit(
                 f"paired_tx_id mismatch for {args.tx_id}: expected {args.expect_paired}, got {payload.get('paired_tx_id')}"
             )
-        if args.expect_amount is not None and payload.get("amount") != args.expect_amount:
+        if (
+            args.expect_amount is not None
+            and payload.get("amount") != args.expect_amount
+        ):
             raise SystemExit(
                 f"amount mismatch for {args.tx_id}: expected {args.expect_amount}, got {payload.get('amount')}"
             )

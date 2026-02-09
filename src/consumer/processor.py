@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-
 from typing import TYPE_CHECKING
 
 from src.consumer.events import LedgerEntryUpserted, PaymentOrderUpserted
@@ -20,6 +19,7 @@ def upsert_ledger_entry(
 ) -> tuple[bool, PairingSnapshot | None]:
     from src.db.models import LedgerEntry
     from src.db.upsert import latest_wins_upsert
+
     ingested_at = _ingested_now()
     values = {
         "tx_id": event.tx_id,
@@ -49,6 +49,7 @@ def upsert_ledger_entry(
 def upsert_payment_order(session: Session, event: PaymentOrderUpserted) -> bool:
     from src.db.models import PaymentOrder
     from src.db.upsert import latest_wins_upsert
+
     ingested_at = _ingested_now()
     values = {
         "order_id": event.order_id,
@@ -80,6 +81,7 @@ def upsert_payment_pair(
 ) -> None:
     from src.db.models import PaymentLedgerPair
     from src.db.upsert import latest_wins_upsert
+
     ingested_at = _ingested_now()
     values = {
         "payment_order_id": payment_order_id,
@@ -93,7 +95,5 @@ def upsert_payment_pair(
         "updated_at": ingested_at,
         "ingested_at": ingested_at,
     }
-    stmt = latest_wins_upsert(
-        PaymentLedgerPair.__table__, values, ["payment_order_id"]
-    )
+    stmt = latest_wins_upsert(PaymentLedgerPair.__table__, values, ["payment_order_id"])
     session.execute(stmt)

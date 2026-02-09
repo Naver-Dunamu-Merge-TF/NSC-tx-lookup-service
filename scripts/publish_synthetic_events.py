@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-import sys
 from typing import Any, Iterable
 
 from confluent_kafka import Producer
@@ -84,30 +84,42 @@ def _build_scenario_records(
 
     if scenario == "happy":
         records = [
-            ("ledger", payment_tx, _ledger_event(
-                tx_id=payment_tx,
-                wallet_id="wallet-payer",
-                entry_type="PAYMENT",
-                amount="100.00",
-                related_id=order_id,
-                event_time=now,
-                version=1,
-            )),
-            ("ledger", receive_tx, _ledger_event(
-                tx_id=receive_tx,
-                wallet_id="wallet-payee",
-                entry_type="RECEIVE",
-                amount="100.00",
-                related_id=order_id,
-                event_time=now,
-                version=1,
-            )),
-            ("payment", order_id, _payment_order_event(
-                order_id=order_id,
-                amount="100.00",
-                event_time=now,
-                version=1,
-            )),
+            (
+                "ledger",
+                payment_tx,
+                _ledger_event(
+                    tx_id=payment_tx,
+                    wallet_id="wallet-payer",
+                    entry_type="PAYMENT",
+                    amount="100.00",
+                    related_id=order_id,
+                    event_time=now,
+                    version=1,
+                ),
+            ),
+            (
+                "ledger",
+                receive_tx,
+                _ledger_event(
+                    tx_id=receive_tx,
+                    wallet_id="wallet-payee",
+                    entry_type="RECEIVE",
+                    amount="100.00",
+                    related_id=order_id,
+                    event_time=now,
+                    version=1,
+                ),
+            ),
+            (
+                "payment",
+                order_id,
+                _payment_order_event(
+                    order_id=order_id,
+                    amount="100.00",
+                    event_time=now,
+                    version=1,
+                ),
+            ),
         ]
         return records, metadata
 
@@ -119,54 +131,78 @@ def _build_scenario_records(
         newer = now
         older = now - timedelta(minutes=3)
         records = [
-            ("ledger", payment_tx, _ledger_event(
-                tx_id=payment_tx,
-                wallet_id="wallet-payer",
-                entry_type="PAYMENT",
-                amount="200.00",
-                related_id=order_id,
-                event_time=newer,
-                version=2,
-            )),
-            ("ledger", receive_tx, _ledger_event(
-                tx_id=receive_tx,
-                wallet_id="wallet-payee",
-                entry_type="RECEIVE",
-                amount="200.00",
-                related_id=order_id,
-                event_time=newer,
-                version=2,
-            )),
-            ("payment", order_id, _payment_order_event(
-                order_id=order_id,
-                amount="200.00",
-                event_time=newer,
-                version=2,
-            )),
-            ("ledger", payment_tx, _ledger_event(
-                tx_id=payment_tx,
-                wallet_id="wallet-payer",
-                entry_type="PAYMENT",
-                amount="150.00",
-                related_id=order_id,
-                event_time=older,
-                version=1,
-            )),
-            ("ledger", receive_tx, _ledger_event(
-                tx_id=receive_tx,
-                wallet_id="wallet-payee",
-                entry_type="RECEIVE",
-                amount="150.00",
-                related_id=order_id,
-                event_time=older,
-                version=1,
-            )),
-            ("payment", order_id, _payment_order_event(
-                order_id=order_id,
-                amount="150.00",
-                event_time=older,
-                version=1,
-            )),
+            (
+                "ledger",
+                payment_tx,
+                _ledger_event(
+                    tx_id=payment_tx,
+                    wallet_id="wallet-payer",
+                    entry_type="PAYMENT",
+                    amount="200.00",
+                    related_id=order_id,
+                    event_time=newer,
+                    version=2,
+                ),
+            ),
+            (
+                "ledger",
+                receive_tx,
+                _ledger_event(
+                    tx_id=receive_tx,
+                    wallet_id="wallet-payee",
+                    entry_type="RECEIVE",
+                    amount="200.00",
+                    related_id=order_id,
+                    event_time=newer,
+                    version=2,
+                ),
+            ),
+            (
+                "payment",
+                order_id,
+                _payment_order_event(
+                    order_id=order_id,
+                    amount="200.00",
+                    event_time=newer,
+                    version=2,
+                ),
+            ),
+            (
+                "ledger",
+                payment_tx,
+                _ledger_event(
+                    tx_id=payment_tx,
+                    wallet_id="wallet-payer",
+                    entry_type="PAYMENT",
+                    amount="150.00",
+                    related_id=order_id,
+                    event_time=older,
+                    version=1,
+                ),
+            ),
+            (
+                "ledger",
+                receive_tx,
+                _ledger_event(
+                    tx_id=receive_tx,
+                    wallet_id="wallet-payee",
+                    entry_type="RECEIVE",
+                    amount="150.00",
+                    related_id=order_id,
+                    event_time=older,
+                    version=1,
+                ),
+            ),
+            (
+                "payment",
+                order_id,
+                _payment_order_event(
+                    order_id=order_id,
+                    amount="150.00",
+                    event_time=older,
+                    version=1,
+                ),
+            ),
         ]
         return records, metadata
 
@@ -208,7 +244,9 @@ def publish_scenario(scenario: str, run_id: str) -> dict[str, str]:
     )
 
     for stream, key, payload in records:
-        topic = config.ledger_topic if stream == "ledger" else config.payment_order_topic
+        topic = (
+            config.ledger_topic if stream == "ledger" else config.payment_order_topic
+        )
         producer.produce(
             topic,
             key=key,
@@ -219,7 +257,9 @@ def publish_scenario(scenario: str, run_id: str) -> dict[str, str]:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Publish deterministic synthetic event scenarios.")
+    parser = argparse.ArgumentParser(
+        description="Publish deterministic synthetic event scenarios."
+    )
     parser.add_argument(
         "--scenario",
         required=True,

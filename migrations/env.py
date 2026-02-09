@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from logging.config import fileConfig
 import os
-from pathlib import Path
 import sys
+from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -12,9 +12,9 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
+import src.db.models  # noqa: F401
 from src.common.config import load_config
 from src.db.base import Base
-import src.db.models  # noqa: F401
 
 config = context.config
 
