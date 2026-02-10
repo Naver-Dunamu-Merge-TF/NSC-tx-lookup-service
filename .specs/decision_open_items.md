@@ -116,19 +116,21 @@
 - 영향: API 조회에서 빠른 페어링 조회 가능
 - 근거: `migrations/20260205_0001_create_backoffice_schema.py`
 
-### DEC-104 Event Hubs 소유 모델(Phase 8 test)
+### DEC-104 Event Hubs 소유 모델
 
-- 상태: **결정됨(2026-02-09)**
-- 결정: Cloud-Test는 owner별로 분리된 Event Hubs namespace를 사용한다(공유 namespace 의존 금지).
-- 영향: 테스트 환경 폐기/재생성 안전성 증가
-- 근거: `.roadmap/implementation_roadmap.md`, `.specs/cloud_migration_rebuild_plan.md`
+- 상태: **결정됨(2026-02-09) → 수정됨(2026-02-10)**
+- 결정(Phase 8): Cloud-Test는 owner별로 분리된 Event Hubs namespace를 사용했다.
+- 결정(Phase 9 이후): 기존 공유 Event Hubs namespace를 활용한다. tx-lookup-service는 토픽(hub)만 소유하고, namespace는 생성하지 않는다.
+- 영향: 리소스 중복 제거, 운영 일관성 확보
+- 근거: `.roadmap/implementation_roadmap.md`, `.specs/cloud_migration_rebuild_plan.md`, 전체 아키텍처 다이어그램
 
-### DEC-105 Cloud-Test 런타임
+### DEC-105 Cloud 런타임
 
-- 상태: **결정됨(2026-02-09)**
-- 결정: Phase 8 Cloud-Test는 `Event Hubs(Kafka) + Azure Container Apps`로 구성한다.
-- 영향: AKS 없이도 빠르게 E2E 검증 가능
-- 근거: `.roadmap/implementation_roadmap.md`, `.specs/cloud_phase8_execution_report.md`
+- 상태: **결정됨(2026-02-09) → 수정됨(2026-02-10)**
+- 결정(Phase 8): Cloud-Test는 `Event Hubs(Kafka) + Azure Container Apps`로 구성했다.
+- 결정(Phase 9 이후): Cloud-Secure는 `Event Hubs(Kafka) + AKS(RG 공유 클러스터)`로 구성한다. tx-lookup-service는 공유 AKS 클러스터에 namespace 분리 배포한다.
+- 영향: AKS를 조직 표준 실행 환경으로 채택, Container Apps는 Phase 8 테스트 한정
+- 근거: `.roadmap/implementation_roadmap.md`, `.specs/cloud_phase8_execution_report.md`, 전체 아키텍처 다이어그램
 
 ### DEC-106 Cloud-Test 시크릿 전달
 
@@ -164,6 +166,18 @@
 - 결정: RG lock으로 delete가 막히면 consumer scale cycle(`min 1 -> 0 -> 1`)로 recreate를 대체 검증한다.
 - 영향: lock 환경에서도 파이프라인 복구 동선 확보
 - 근거: `scripts/cloud/phase8/destroy_recreate_check.sh`, `.specs/cloud_phase8_execution_report.md`
+
+### DEC-111 Azure 리소스 소유 모델(Cloud-Secure)
+
+- 상태: **결정됨(2026-02-10)**
+- 결정: tx-lookup-service의 Azure 리소스를 아래와 같이 분류한다.
+  - **서비스 전용**: Azure Database for PostgreSQL Flexible Server (Backoffice Serving DB)
+  - **RG 공유**: AKS(클러스터), ACR, Key Vault, App Insights, Log Analytics
+  - **기존 활용**: Event Hubs namespace(이미 존재, 토픽만 소유)
+  - **플랫폼 소유**: App Gateway, Bastion, Firewall, VNet, Private DNS Zone
+  - **비범위**: Confidential Ledger(CryptoSvc), SQL Database(AccountSvc), Databricks, ADLS Gen2
+- 영향: 리소스 생성은 인프라팀이 수행한다. 이 레포는 네이밍 컨벤션과 리소스 요구사항만 정의하고 인프라팀에 전달한다.
+- 근거: 전체 아키텍처 다이어그램 분석, `.specs/backoffice_project_specs.md` 10.3항, `.specs/cloud_migration_rebuild_plan.md`
 
 ### DEC-201 DLQ 저장소(Cloud-Secure/Prod)
 

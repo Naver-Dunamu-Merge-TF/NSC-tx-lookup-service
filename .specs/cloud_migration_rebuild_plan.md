@@ -16,17 +16,24 @@ Last updated: 2026-02-09
 
 ## 3. 범위
 
-Phase 8 클라우드 인프라 준비 항목 기준:
-- Azure PostgreSQL Flexible Server
-- Event Hubs (Kafka endpoint) 또는 Managed Kafka
-- ACR + 실행환경(ACA/AKS)
-- Key Vault + Managed Identity
-- App Insights + Log Analytics
+리소스 생성은 인프라팀이 수행한다. 이 레포는 **네이밍 컨벤션과 리소스 요구사항**만 정의한다.
+
+서비스 전용 리소스 (인프라팀에 생성 요청):
+- Azure PostgreSQL Flexible Server — Backoffice Serving DB
+
+RG 공유 리소스 (인프라팀 소유, 이 서비스가 활용):
+- AKS — namespace 분리 배포
+- ACR — 이미지 리포지토리 분리
+- Key Vault + Managed Identity — 시크릿 접근 정책 분리
+- App Insights + Log Analytics — cloud_roleName 분리
+
+기존 리소스 활용:
+- Event Hubs namespace — 이미 존재, 토픽(hub)만 소유
 
 ## 3.1 Phase 8 테스트 프로파일 (확정)
 
-1. 메시징/런타임: `Event Hubs(Kafka) + Azure Container Apps`
-2. Event Hubs 소유: 팀 공유가 아닌 개인 분리 namespace 사용
+1. 메시징/런타임: `Event Hubs(Kafka) + Azure Container Apps` (Phase 8 한정, Phase 9부터 AKS)
+2. Event Hubs: 기존 공유 namespace 활용, 토픽만 소유 (Phase 8에서는 테스트용 개인 namespace 사용)
 3. 네트워크: 테스트 목적 퍼블릭 엔드포인트 허용
 4. 시크릿: 가장 단순한 전달 방식(SAS/env 주입) 우선
 5. Event Hubs 기준값:
@@ -44,8 +51,11 @@ Phase 8 클라우드 인프라 준비 항목 기준:
 - 필요 시 즉시 폐기/재생성
 
 2. Stage B: **Cloud-Secure(운영형)**
-- 보안 네트워크/권한이 적용된 별도 리소스에 재배포
-- Key Vault + Managed Identity 전환
+- PostgreSQL만 서비스 전용 생성, 나머지(AKS/ACR/Key Vault/App Insights/Log Analytics)는 RG 공유 리소스 활용
+- Event Hubs는 기존 공유 namespace 활용 (토픽만 소유)
+- 실행 환경: AKS 공유 클러스터 (namespace 분리 배포)
+- Key Vault(공유) + Managed Identity(서비스 전용) 전환
+- Private Endpoint/VNet/Firewall 기반 네트워크 보안
 - 동일 스모크 + SLO 게이트 재검증
 
 3. Stage C: **승격 자동화**
@@ -57,21 +67,36 @@ Phase 8 클라우드 인프라 준비 항목 기준:
 - Stage B -> `.roadmap/implementation_roadmap.md` Phase 9
 - Stage C -> `.roadmap/implementation_roadmap.md` Phase 10
 
-## 3.3 공통 명명/태그/가드레일 정책 (지속 적용)
+## 3.3 네이밍 컨벤션 (이 레포 책임 범위)
 
-1. 리소스 명명 규칙
-- 하이픈 허용 리소스: `team4-txlookup-<resource>-<owner>-<env>`
-- 하이픈 비허용 리소스(예: ACR, Storage): `team4txlookup<resource><owner><env>`
-- 길이 제한 리소스(Container Apps 계열): `team4-tx-<resource>-<owner>-<env_short>` 형태를 사용하고 이름 길이는 32자 이하여야 한다.
-- `owner`, `env` 토큰은 환경 프로파일 입력값으로 관리한다(정책에 하드코딩하지 않음).
+> 리소스 생성은 인프라팀이 수행한다. 이 레포는 네이밍 컨벤션을 정의하고 인프라팀에 전달한다.
+> 상세: `.specs/azure_naming_convention.md`
 
-2. 테스트/폐기형 환경 공통 태그 규칙
+포괄 규칙: `nsc-<service>-<resource>` (환경 분리 없이 단일 소스)
+
+### 서비스 전용 리소스 명명
+
+| 리소스 | 네이밍 |
+|--------|--------|
+| PostgreSQL Flexible Server | `nsc-txlookup-pg` |
+
+### 공유 리소스 내 서비스 격리 명명
+
+| 대상 | 네이밍 |
+|------|--------|
+| AKS namespace | `txlookup` |
+| ACR 이미지 리포지토리 | `txlookup/api`, `txlookup/consumer` |
+| Key Vault secret prefix | `txlookup-<key>` |
+| App Insights cloud_roleName | `txlookup-api`, `txlookup-consumer` |
+| Event Hubs consumer group | `bo-sync-v1` |
+| Event Hubs 토픽(hub) | `ledger.entry.upserted`, `payment.order.upserted` |
+
+### 공통 태그 규칙
 - 필수 태그: `env`, `owner`, `project`, `ttl`
 - `ttl`은 `YYYY-MM-DD` 형식을 사용하며 만료 전/만료 시점에 연장 또는 폐기 결정을 수행한다.
 
-3. 공통 가드레일
+### 공통 가드레일
 - Databricks managed 리소스 그룹 및 하위 리소스는 플랫폼 관리 대상이므로 수동 rename/delete를 금지한다.
-- tx-lookup 테스트 실행은 Event Hubs 개인 분리 namespace를 사용한다(공유 namespace 의존 금지).
 - 파괴 작업은 명명 규칙과 태그 규칙으로 테스트 대상임을 식별한 리소스에만 수행한다.
 
 ## 4. 마이그레이션 전략

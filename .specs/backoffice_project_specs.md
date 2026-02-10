@@ -198,25 +198,32 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 
 > 제품/조직 상황에 따라 AKS/App Service 등으로 대체 가능. 여기서는 관리 난이도가 낮은 구성을 기본으로 둔다.
 
-- **Cloud-Test(Phase E1)**
+- **Cloud-Test(Phase E1)** — Phase 8에서 검증 완료, 폐기 대상
   - 데이터베이스: Azure Database for PostgreSQL(Flexible Server, test profile)
   - 이벤트 버스: Azure Event Hubs(Kafka endpoint, isolated namespace)
   - 실행 환경: Azure Container Apps
   - 시크릿: SAS/env 주입 우선(테스트 속도 우선)
   - 관측: 최소 App Insights + Log Analytics 연결
-- **Cloud-Secure(Phase E2)**
-  - 데이터베이스: Azure Database for PostgreSQL(Flexible Server, secure profile)
-  - 이벤트 버스: Event Hubs/Kafka secure profile
-  - 실행 환경: Container Apps 또는 AKS(조직 표준에 맞춤)
-  - 시크릿: Key Vault + Managed Identity 필수
+- **Cloud-Secure(Phase E2)** — 리소스 소유 모델 적용
+  - 데이터베이스: Azure Database for PostgreSQL(Flexible Server, secure profile) — **서비스 전용**
+  - 이벤트 버스: 기존 Event Hubs namespace 활용, 토픽만 소유 — **RG 공유**
+  - 실행 환경: AKS(RG 공유 클러스터, namespace 분리 배포) — **RG 공유**
+  - 이미지 레지스트리: ACR — **RG 공유**
+  - 시크릿: Key Vault(RG 공유) + Managed Identity(서비스 전용)
   - 네트워크: Private Endpoint/VNet/Firewall 기반
-  - 관측: 운영 알림 기준까지 확정된 App Insights + Log Analytics
+  - 관측: App Insights + Log Analytics — **RG 공유**
+
+> **리소스 소유 모델**: 리소스 생성은 인프라팀이 수행한다. 이 레포는 네이밍 컨벤션과 리소스 요구사항만 정의한다.
+> PostgreSQL만 서비스 전용으로 요청한다. AKS/ACR/Key Vault/App Insights/Log Analytics는 RG 공유 리소스를 활용하며,
+> 서비스 격리는 namespace/리포지토리/secret prefix/cloud_roleName으로 구분한다.
+> Event Hubs namespace는 이미 존재하며 토픽(hub)만 이 서비스가 소유한다.
+> 네이밍 컨벤션 상세는 `.specs/cloud_migration_rebuild_plan.md` 3.3항 참조.
 
 ### 10.4 환경 분리 / 설정 관리
 
-- `local` / `dev` / `prod` 최소 3개 환경을 권장
-- 환경별로 리소스 분리(Resource Group/네트워크/DB/토픽)
+- `local`(Docker Compose) + Azure 단일 소스(환경 분리 없음)
 - 설정은 12-factor 원칙(환경변수/시크릿)로 관리하고, 저장소에 자격 증명은 커밋하지 않는다.
+- 네이밍 컨벤션: `.specs/azure_naming_convention.md` 참조
 
 ### 10.5 CI/CD(초안)
 
