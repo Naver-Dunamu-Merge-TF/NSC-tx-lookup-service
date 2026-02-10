@@ -4,6 +4,10 @@ import json
 import time
 from datetime import datetime, timezone
 
+import pytest
+
+pytestmark = pytest.mark.e2e
+
 from confluent_kafka import Producer
 from fastapi.testclient import TestClient
 

@@ -17,3 +17,23 @@ ignore = ["E501"]
 "migrations/env.py" = ["E402"]
 "scripts/*.py" = ["E402"]
 "scripts/cloud/**/*.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: requires Docker PostgreSQL",
+    "e2e: requires Docker PostgreSQL + Kafka",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/*/main.py"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]

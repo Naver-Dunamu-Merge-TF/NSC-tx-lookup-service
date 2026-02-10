@@ -3,6 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 from sqlalchemy import select
 
 from src.db.admin_tx import fetch_admin_tx_context
