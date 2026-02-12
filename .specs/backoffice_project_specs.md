@@ -198,7 +198,7 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 
 > 제품/조직 상황에 따라 AKS/App Service 등으로 대체 가능. 여기서는 관리 난이도가 낮은 구성을 기본으로 둔다.
 
-- **Cloud-Test(Phase E1)** — Phase 8에서 검증 완료, 폐기 대상
+- **Cloud-Test(Phase E1)** — Phase 8에서 검증 완료, 폐기 대상 (프로비저닝 스크립트는 인프라팀 이관 후 제거됨)
   - 데이터베이스: Azure Database for PostgreSQL(Flexible Server, test profile)
   - 이벤트 버스: Azure Event Hubs(Kafka endpoint, isolated namespace)
   - 실행 환경: Azure Container Apps
@@ -218,6 +218,10 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 > 서비스 격리는 namespace/리포지토리/secret prefix/cloud_roleName으로 구분한다.
 > Event Hubs namespace는 이미 존재하며 토픽(hub)만 이 서비스가 소유한다.
 > 네이밍 컨벤션 상세는 `.specs/cloud_migration_rebuild_plan.md` 3.3항 참조.
+>
+> **이벤트 발행 책임**: 카프카 프로듀서 코드는 업스트림 서비스(CryptoSvc, AccountSvc, CommerceSvc)가 소유한다.
+> tx-lookup-service는 컨슈머 전용이며, 이벤트 계약(스키마)은 `configs/topic_checklist.md`에서 정의한다.
+> 카프카/모니터링 인프라 프로비저닝은 인프라팀이 수행한다.
 
 ### 10.4 환경 분리 / 설정 관리
 

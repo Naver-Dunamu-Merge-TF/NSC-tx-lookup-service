@@ -1,5 +1,8 @@
 # Phase 8 Cloud-Test Execution Report
 
+> **아카이브**: 이 보고서는 Phase 8 Cloud-Test의 이력 기록이다.
+> Phase 8 프로비저닝 스크립트(`scripts/cloud/phase8/`)는 인프라팀 이관 후 제거되었다.
+
 Last updated: 2026-02-09
 
 ## 1. Scope
@@ -93,16 +96,16 @@ Destroy/Recreate validation:
 
 ## 5. Artifacts
 
-Added execution automation:
-- `scripts/cloud/phase8/provision_resources.sh`
-- `scripts/cloud/phase8/build_push_images.sh`
-- `scripts/cloud/phase8/run_db_migrations.sh`
-- `scripts/cloud/phase8/deploy_apps.sh`
-- `scripts/cloud/phase8/run_smoke.sh`
-- `scripts/cloud/phase8/destroy_recreate_check.sh`
-- `scripts/cloud/phase8/run_all.sh`
-- `scripts/cloud/phase8/check_admin_tx.py`
-- `scripts/publish_synthetic_events.py`
+Added execution automation (제거됨 — 인프라팀 이관):
+- ~~`scripts/cloud/phase8/provision_resources.sh`~~
+- ~~`scripts/cloud/phase8/build_push_images.sh`~~
+- ~~`scripts/cloud/phase8/run_db_migrations.sh`~~
+- ~~`scripts/cloud/phase8/deploy_apps.sh`~~
+- ~~`scripts/cloud/phase8/run_smoke.sh`~~
+- ~~`scripts/cloud/phase8/destroy_recreate_check.sh`~~
+- ~~`scripts/cloud/phase8/run_all.sh`~~
+- ~~`scripts/cloud/phase8/check_admin_tx.py`~~
+- `scripts/publish_synthetic_events.py` (유지 — 로컬 개발/테스트용)
 
 Container build assets:
 - `docker/api.Dockerfile`

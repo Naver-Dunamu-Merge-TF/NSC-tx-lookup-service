@@ -158,14 +158,14 @@
 - 상태: **결정됨(2026-02-09)**
 - 결정: `team4-txlookup-*` 패턴을 유지하되, Container Apps 계열은 32자 제한으로 축약 패턴을 사용한다.
 - 영향: Azure naming limit 회피
-- 근거: `.specs/cloud_migration_rebuild_plan.md`, `scripts/cloud/phase8/provision_resources.sh`, `.specs/cloud_phase8_execution_report.md`
+- 근거: `.specs/cloud_migration_rebuild_plan.md`, ~~`scripts/cloud/phase8/provision_resources.sh`~~ (제거됨), `.specs/cloud_phase8_execution_report.md`
 
 ### DEC-110 Destroy/Recreate test under RG lock
 
 - 상태: **결정됨(2026-02-09)**
 - 결정: RG lock으로 delete가 막히면 consumer scale cycle(`min 1 -> 0 -> 1`)로 recreate를 대체 검증한다.
 - 영향: lock 환경에서도 파이프라인 복구 동선 확보
-- 근거: `scripts/cloud/phase8/destroy_recreate_check.sh`, `.specs/cloud_phase8_execution_report.md`
+- 근거: ~~`scripts/cloud/phase8/destroy_recreate_check.sh`~~ (제거됨), `.specs/cloud_phase8_execution_report.md`
 
 ### DEC-111 Azure 리소스 소유 모델(Cloud-Secure)
 
@@ -226,3 +226,10 @@
 - 영향: 운영/CS가 상태를 그룹 단위로 빠르게 해석 가능
 - 재검토 트리거: status taxonomy 확정/변경 시 v2 매핑으로 재정의
 - 근거: `src/api/service.py`, `tests/unit/test_api_service.py`, `.specs/backoffice_project_specs.md`, `.specs/backoffice_db_admin_api.md`
+
+### DEC-112 이벤트 발행 책임 분리
+
+- 상태: **결정됨(2026-02-12)**
+- 결정: 카프카 프로듀서 코드(이벤트 발행)는 업스트림 서비스(CryptoSvc, AccountSvc, CommerceSvc)가 소유한다. tx-lookup-service는 컨슈머 전용이다. 카프카/모니터링 인프라 프로비저닝은 인프라팀이 수행한다.
+- 영향: Phase 8 프로비저닝 스크립트(`scripts/cloud/phase8/`) 제거. 이벤트 계약(스키마)은 `configs/topic_checklist.md`에서 정의하고 업스트림 팀에 전달한다.
+- 근거: 팀 간 업무 범위 조정, `.specs/backoffice_project_specs.md` 10.3항, `.specs/entire_architecture.md`

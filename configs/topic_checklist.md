@@ -1,5 +1,9 @@
 # Integration Topic Checklist
 
+> **이벤트 계약**: 이 체크리스트는 업스트림 프로듀서 팀(CryptoSvc, AccountSvc, CommerceSvc)이
+> 발행해야 하는 이벤트 계약이다. tx-lookup-service는 컨슈머로서 이 계약에 따라 이벤트를 수신한다.
+> (DEC-112 참조)
+
 ## Required topics
 
 1) Ledger entry upsert topic (default: `ledger.entry.upserted`)

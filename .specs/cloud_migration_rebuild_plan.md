@@ -30,6 +30,9 @@ RG 공유 리소스 (인프라팀 소유, 이 서비스가 활용):
 기존 리소스 활용:
 - Event Hubs namespace — 이미 존재, 토픽(hub)만 소유
 
+> **이벤트 발행 책임**: 이벤트 발행(프로듀서 코드)은 업스트림 서비스가 담당한다.
+> tx-lookup-service는 컨슈머 전용이다. 이벤트 계약은 `configs/topic_checklist.md` 참조.
+
 ## 3.1 Phase 8 테스트 프로파일 (확정)
 
 1. 메시징/런타임: `Event Hubs(Kafka) + Azure Container Apps` (Phase 8 한정, Phase 9부터 AKS)
@@ -42,6 +45,9 @@ RG 공유 리소스 (인프라팀 소유, 이 서비스가 활용):
 - retention: 3 days
 - consumer group naming: `bo-sync-<env>-<owner>-v1`
 6. 본 프로파일은 테스트/검증 전용이며, 보안 강화 버전은 별도 리소스 재구성으로 전환한다.
+
+> Phase 8 프로비저닝 스크립트(`scripts/cloud/phase8/`)는 검증 완료 후 제거되었다.
+> 이후 프로비저닝은 인프라팀이 수행한다.
 
 ## 3.2 개발 단계 모델 (테스트 리소스 -> 보안 리소스)
 
