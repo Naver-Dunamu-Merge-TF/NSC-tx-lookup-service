@@ -1,177 +1,130 @@
-# 구현 계획표 (2026-02-06)
+# F/E 축 기반 구현 로드맵 (SSOT 파생)
 
-## 기준 문서
+Last updated: 2026-02-12
+
+> 본 문서는 SSOT 문서 기준으로 현재 구현 상태를 요약한 파생 로드맵이다.
+> 기존 `Phase 1~11` 참조는 본 개정에서 폐기한다.
+
+## 1) 기준 문서 / 판정 규칙
+
+### 1.1 기준 문서
 - `.specs/backoffice_project_specs.md`
 - `.specs/backoffice_db_admin_api.md`
 - `.specs/backoffice_data_project.md`
 - `.specs/infra/cloud_migration_rebuild_plan.md`
+- `.specs/decision_open_items.md`
+- `.specs/archive/cloud_phase8_execution_report.md`
 - `README.md`
 
-## Phase 1 — 리포지토리 골격 + 공통 기반
-- [x] `src/api`, `src/consumer`, `src/db`, `src/common`, `tests/unit`, `tests/integration`, `migrations`, `configs`, `docker` 디렉터리 생성
-- [x] 공통 설정 로딩(환경변수/시크릿) 스켈레톤 및 기본 로깅 포맷 확정
-- [x] (Local) `docker compose` 스켈레톤: PostgreSQL + Kafka(or Event Hub emulator 대체) 부팅
-- [x] 개발/운영 환경 구분(`local/dev/prod`) 기본 규칙 문서화
-- [x] Commit
+### 1.2 판정 규칙
+- 상태는 `COMPLETE`, `IN PROGRESS`, `NOT STARTED` 3단계로만 표기한다.
+- 상태 근거는 SSOT 문서 + 코드/테스트 증빙 + DEC 결과를 우선 적용한다.
+- 기준 시점은 워킹트리 문서 상태(2026-02-12)다.
+- 일정 날짜/스프린트는 두지 않고, 게이트(진입/완료 조건) 기준으로만 관리한다.
 
-## Phase 2 — Backoffice DB 스키마 + 마이그레이션
-- [x] `bo.ledger_entries`, `bo.payment_orders`, `bo.payment_ledger_pairs` 스키마 정의 및 인덱스 설계
-- [x] Alembic 마이그레이션 초안 생성 및 롤백 규칙 확정
-- [x] 공통 DB 접근 레이어(연결 풀/세션) 및 upsert 헬퍼 구축
-- [x] (Local) 로컬 DB 마이그레이션 적용 및 샘플 데이터 seed 스크립트 추가
-- [x] (옵션) `bo.admin_tx_search` 뷰/테이블 필요성 결정 및 설계 초안 (Phase 5 API 쿼리 패턴 확정 후 재검토)
-- [x] Commit
+## 2) 상태 스냅샷
 
-## Phase 3 — 초기 적재(Backfill) + Sync Consumer 기본 동작
-- [x] 초기 적재(backfill) 범위/기간 정의 및 스크립트 설계
-- [x] backfill 실행 경로 구현(덤프 적재 또는 배치 모드)
-- [x] 이벤트 스키마 모델(`LedgerEntryUpserted`, `PaymentOrderUpserted`) 정의
-- [x] Kafka consumer 루프 및 역직렬화/검증 파이프라인 구현
-- [x] 멱등 upsert 로직 구현(`tx_id`, `order_id`) + `updated_at/version` 최신판 정책
-- [x] `updated_at/version` 부재 시 `ingested_at` 기준 LWW 정책 적용
-- [x] `ingested_at` 기록 및 `version_missing_cnt` 지표 산출
-- [x] DLQ 기본 처리(파일/토픽/테이블 중 1개 선택) 스켈레톤
-- [x] (Local) 샘플 이벤트 퍼블리셔 및 재처리 시나리오 테스트
-- [x] 통합 테스트용 토픽/필수 필드 체크리스트 검증 및 샘플 메시지 확보
-- [x] Commit
+| Stage | Status | 근거 문서 |
+| --- | --- | --- |
+| F1 | COMPLETE | `.specs/backoffice_project_specs.md` 9.1, `src/api/main.py`, `tests/e2e/test_admin_tx_e2e.py` |
+| F2 | COMPLETE | `.specs/backoffice_project_specs.md` 9.1, `.specs/decision_open_items.md` DEC-211/216, `src/consumer/pairing.py` |
+| F3 | IN PROGRESS | `.specs/backoffice_project_specs.md` 9.1, `.specs/backoffice_project_specs.md` 11, `.specs/backoffice_data_project.md` 11 |
+| E1 | COMPLETE | `.specs/backoffice_project_specs.md` 9.2, `.specs/archive/cloud_phase8_execution_report.md`, `.specs/infra/cloud_migration_rebuild_plan.md` 3.1 |
+| E2 | NOT STARTED | `.specs/backoffice_project_specs.md` 9.2, `.specs/infra/cloud_migration_rebuild_plan.md` 3.2(Stage B) |
+| E3 | NOT STARTED | `.specs/backoffice_project_specs.md` 9.2, `.specs/infra/cloud_migration_rebuild_plan.md` 3.2(Stage C) |
 
-## Phase 4 — 페어링 테이블 + 품질 지표
-- [x] `related_id` 기준 페어링 계산(부분 완성 허용) 로직 구현
-- [x] `bo.payment_ledger_pairs` 업데이트/보정 정책 정의
-- [x] `pair_incomplete` 비율/지연 시간 산출 지표 추가
-- [x] out-of-order 이벤트에 대한 페어링 안정성 테스트
-- [x] Commit
+## 3) 완료 단계 요약 (짧게)
 
-## Phase 5 — Admin API Read-only MVP
-- [x] FastAPI 앱 스켈레톤 및 `GET /admin/tx/{tx_id}` 구현
-- [x] 페어링 불완전 처리: `pairing_status`, `paired_tx_id`, `data_lag_sec` 계산
-- [x] `tx_id` 미존재 시 404 응답 정책 반영
-- [x] `related_type` 기본값(`PAYMENT_ORDER`/`UNKNOWN`) 및 `status_group=UNKNOWN` 기본값 처리
-- [ ] (권장) `GET /admin/payment-orders/{order_id}` / `GET /admin/wallets/{wallet_id}/tx` 초안 (Phase 6 이후 범위 재확인)
-- [x] DB 쿼리 경로 최적화(인덱스 사용 확인, N+1 제거)
-- [x] (Local) API ↔ DB ↔ Consumer E2E 스모크 테스트
-- [x] Commit
+### F1 — COMPLETE
+- Backoffice DB + Admin API read path가 운영 기준으로 동작한다.
+- API 기준선 3종(`GET /admin/tx/{tx_id}`, `GET /admin/payment-orders/{order_id}`, `GET /admin/wallets/{wallet_id}/tx`)이 구현되어 있다.
+- 감사로그 `bo.admin_audit_logs.result_count` 반영까지 완료됐다.
 
-## Phase 6 — 인증/인가 + 감사 로그
-- [x] OIDC/JWT 검증 미들웨어 도입 및 RBAC(`ADMIN_READ`, `ADMIN_AUDIT`) 적용
-- [x] 감사 로그 스키마/저장 경로 확정(테이블 or 로그 집계)
-- [x] 감사 로그 필드(`who/when/what/result/ip/ua`) 일관화
-- [x] 민감 필드 최소화/마스킹 정책 추가
-- [x] Commit
+### F2 — COMPLETE
+- `bo.payment_ledger_pairs` 기반 페어링 경로와 품질 보정(반대 타입 필터, 회귀 방지, 범위 제한)이 적용됐다.
 
-## Phase 7 — 관측/운영(SLO) 강화
-- [x] API 지표(p50/p95/p99, error rate, QPS) 계측
-- [x] Consumer 지표(lag, DLQ rate, freshness) 계측
-- [x] 트레이싱/코릴레이션 ID 전파
-- [x] (Local) 메트릭 노출(예: /metrics) 및 대시보드 초안
-- [x] SLO 기준 명시: API p95 200ms, 데이터 신선도 p95 5s, 알림 임계치 정의
-- [x] Commit
+### E1 — COMPLETE
+- Cloud-Test(E1) E2E 스모크 및 재생성 검증이 완료됐고 결과가 아카이브 문서에 정리돼 있다.
 
-## Phase 8 — Cloud-Test 인프라(폐기형 / Public)
-- [x] (Cloud-Test) 테스트 표준 조합 확정: Event Hubs(Kafka) + Container Apps + Public endpoint
-- [x] (Cloud-Test) Azure PostgreSQL(Flexible) 프로비저닝 및 퍼블릭 접근 정책 적용
-- [x] (Cloud-Test) Event Hubs 개인 분리 namespace/hub/consumer group 생성 (계약값: partition=2, retention=3d, hubs=2개)
-- [x] (Cloud-Test) ACR + Container Apps 배포 기본값 확정 (consumer `min=1`, `max=1`)
-- [x] (Cloud-Test) 시크릿 전달 정책 확정: SAS/env 우선, Key Vault+MI는 보안 전환 단계에서 적용
-- [x] (Cloud-Test) Container Apps에 SAS/env 시크릿 주입 구성 적용
-- [x] (Cloud-Test) App Insights/Log Analytics 연동
-- [x] (Cloud-Test) 실데이터 부재 대비 synthetic 이벤트 세트 준비(happy/duplicate/out-of-order/error)
-- [x] (Cloud-Test) Cloud smoke: publish -> consume -> upsert -> API(200/404) + 멱등성 재처리 확인
-- [x] (Cloud-Test) 폐기/재생성(`Destroy -> Recreate`) 1회 검증 및 기록
-- [x] (Cloud-Test) RG lock으로 리소스 삭제가 막히는 경우 scale cycle(`min 1 -> 0 -> 1`) fallback 검증
-- [ ] Commit
+## 4) 미완료 단계 실행 백로그 (대형 태스크 + 세부 태스크)
 
-## Phase 9 — Secure 인프라 승격(보안 네트워크 / 운영형)
-- [ ] (Cloud-Secure) 보안용 별도 리소스 세트 생성(테스트 리소스 인플레이스 전환 금지)
-- [ ] (Cloud-Secure) 네트워크 제한 적용(Private Endpoint/VNet/Firewall 정책)
-- [ ] (Cloud-Secure) Key Vault + Managed Identity 기반 시크릿 전달 전환
-- [ ] (Cloud-Secure) 최소권한 RBAC/접근제어 정책 적용(DB/Event Hubs/Container Apps)
-- [ ] (Cloud-Secure) 스키마 마이그레이션 + backfill + consumer 동기화 재실행
-- [ ] (Cloud-Secure) Secure smoke: publish -> consume -> upsert -> API(200/404) 검증
-- [ ] (Cloud-Secure) 테스트 리소스 폐기 또는 TTL 만료 정책 확정
-- [ ] Commit
+### F3 — IN PROGRESS
 
-## Phase 10 — 배포/운영 파이프라인 + 테스트 체계
-- [ ] CI: lint + unit + integration(컨테이너) 기본 게이트 구성
-- [ ] CD: 이미지 빌드/스캔 → DB 마이그레이션 → Cloud-Secure 배포 → 스모크 테스트
-- [ ] 환경 승격 게이트 정의(Cloud-Test 통과 -> Cloud-Secure 반영)
-- [ ] backfill/재처리(runbook) 및 DLQ replay 절차 문서화
-- [ ] 장애/데이터 불일치 대응 체크리스트 정리
-- [ ] 토픽 스키마/계약 테스트를 CI에 연결
-- [ ] Commit
+#### 대형 태스크 F3-1: 상태/버전 이벤트 계약 표준화
+- [ ] `payment_orders.status` 운영 표준 집합(v2) 확정 및 `status_group` 매핑표 동결
+- [ ] 토픽별 필수 메타(`updated_at` 또는 `version`) 제공률 기준 합의
+- [ ] `configs/topic_checklist.md` 계약 문구 갱신 및 업스트림 전달 기록
+- [ ] 표준화 결과를 `.specs/backoffice_project_specs.md`/`.specs/backoffice_data_project.md`에 반영
 
-## Phase 11 — 안정화 및 문서화
-- [ ] 성능 튜닝(쿼리 플랜/인덱스/커넥션 풀) 점검 및 개선
-- [ ] 페어링 품질/데이터 신선도 SLO 목표치 확정
-- [ ] 운영/보안 문서화(접근 제어, 감사 로그 보관, 키 회전)
-- [ ] 아키텍처/데이터 흐름/테이블 스키마 문서 최신화
-- [ ] Commit
+#### 대형 태스크 F3-2: SLO 알림 규칙 운영 적용
+- [ ] `docker/observability/alert_rules.yml`의 규칙을 실제 알림 플랫폼(Azure Monitor) 규칙으로 이식
+- [ ] `api_request_latency_seconds`, `consumer_freshness_seconds`, `db_pool_*`, `db_replication_lag_seconds` 대시보드 연결
+- [ ] 임계치 튜닝(오탐/미탐 점검)과 severity 운영안 확정
+- [ ] 알림 발생 -> 조치 -> 복구까지 운영 증빙 로그 확보
 
-## Phase별 산출물 체크리스트
+#### 대형 태스크 F3-3: 품질 게이트 마감
+- [ ] L2 게이트(`.venv/bin/python -m pytest --cov-fail-under=80`) 정기 통과 상태 확보
+- [ ] 페어링/상태 변경 관련 L3 스모크 기준 시나리오 확정
+- [ ] F3 완료 판정 체크리스트(계약, 알림, 테스트) 문서화
 
-### Phase 1
-- [x] 디렉터리 골격 생성 완료
-- [x] 공통 설정/로깅 스켈레톤 확정
-- [x] (Local) Docker compose로 DB/브로커 기동 확인
-- [x] 환경 분리 규칙 문서화
+### E2 — NOT STARTED
 
-### Phase 2
-- [x] Backoffice DB 스키마/인덱스 확정
-- [x] Alembic 마이그레이션 적용 확인
-- [x] upsert 헬퍼/DB 레이어 동작 확인
-- [x] (Local) 샘플 데이터 seed 확인
-- [x] (옵션) `bo.admin_tx_search` 설계 결정
+#### 대형 태스크 E2-1: Cloud-Secure 리소스 준비(보안형)
+- [ ] 인프라팀에 서비스 전용/공유 리소스 요청서 제출(PostgreSQL 전용 + AKS/ACR/Key Vault 공유 모델)
+- [ ] 네트워크 요구사항(Private Endpoint/VNet/Firewall) 상세 명세 확정
+- [ ] 리소스 네이밍/태그/소유권 검증 체크리스트 작성
 
-### Phase 3
-- [x] backfill 스크립트/경로 검증
-- [x] Consumer 기본 동작(consume→upsert) 확인
-- [x] 최신판 정책(`updated_at/version`) 적용 확인
-- [x] `ingested_at` LWW 정책 적용 확인
-- [x] `ingested_at` 기록/지표 산출 확인
-- [x] DLQ 스켈레톤 동작 확인
-- [x] 토픽/필수 필드 체크리스트 검증
+#### 대형 태스크 E2-2: 시크릿/권한 전환
+- [ ] SAS/env 기반 전달에서 Key Vault + Managed Identity 방식으로 전환 설계
+- [ ] 최소권한 RBAC 매트릭스(DB/Event Hubs/AKS/Key Vault) 확정
+- [ ] 접근 실패(401/403/권한오류) 관측 경로와 감사 경로 분리 정의
 
-### Phase 4
-- [x] 페어링 부분/완성 케이스 동작 확인
-- [x] `pair_incomplete` 지표 산출 확인
-- [x] out-of-order 테스트 통과
+#### 대형 태스크 E2-3: 재적재/컷오버 리허설
+- [ ] `alembic upgrade head -> backfill -> consumer sync` 순서 리허설
+- [ ] `GET /admin/tx/{tx_id}` 200/404 스모크 + 멱등 재처리 검증
+- [ ] 컷오버 시점(`T_cutover`) 및 롤백 의사결정 기준 문서화
 
-### Phase 5
-- [x] `GET /admin/tx/{tx_id}` 응답 스키마 확정
-- [x] `pairing_status`/`data_lag_sec` 계산 확인
-- [x] 404/기본값(`related_type`, `status_group`) 처리 확인
-- [x] (Local) E2E 스모크 테스트 통과
+#### 대형 태스크 E2-4: 승인 게이트
+- [ ] 보안 통제 체크(네트워크/시크릿/권한) 통과 증빙 확보
+- [ ] 데이터 신선도/API 지연 SLO 재검증 결과 확보
+- [ ] E2 완료 승인 레코드(결재/리뷰 로그) 저장
 
-### Phase 6
-- [x] RBAC 적용 확인
-- [x] 감사 로그 저장/집계 확인
-- [x] 민감 필드 최소화 정책 반영
+### E3 — NOT STARTED
 
-### Phase 7
-- [x] API/Consumer 핵심 지표 노출 확인
-- [x] 트레이싱/코릴레이션 ID 전파 확인
-- [x] (Local) 대시보드 초안 확인
-- [x] SLO 기준 및 알림 임계치 확정
+#### 대형 태스크 E3-1: CI 게이트 구축
+- [ ] PR 게이트에 lint + unit + integration + coverage(>=80) 구성
+- [ ] `.venv` 기준 검증 명령 고정 및 실패 시 로그 아카이브 자동화
+- [ ] 계약 드리프트 방지 테스트(`tests/unit/test_alert_rules.py` 등) 상시 실행 편입
 
-### Phase 8
-- [x] (Cloud-Test) DB/브로커/컴퓨트 리소스 생성 확인
-- [x] (Cloud-Test) 관측 스택 연동 확인
-- [x] (Cloud-Test) synthetic 이벤트 기반 E2E 스모크 확인
-- [x] (Cloud-Test) 폐기/재생성 검증 기록 확인
+#### 대형 태스크 E3-2: CD 파이프라인 구축
+- [ ] build/scan -> migration -> deploy -> smoke 단계 정의
+- [ ] 배포 중단 조건(마이그레이션 실패, 스모크 실패)과 자동 롤백 기준 정의
+- [ ] Cloud-Test 통과 결과를 Cloud-Secure 반영 게이트로 연동
 
-### Phase 9
-- [ ] (Cloud-Secure) 보안 네트워크/권한 정책 적용 확인
-- [ ] (Cloud-Secure) Key Vault + Managed Identity 연동 확인
-- [ ] (Cloud-Secure) 마이그레이션/백필/증분 동기화 재실행 확인
-- [ ] (Cloud-Secure) Secure smoke 통과
+#### 대형 태스크 E3-3: 운영 복구 체계 운영화
+- [ ] DLQ replay/runbook/backfill 절차를 운영 문서로 고정
+- [ ] 장애/데이터 불일치 대응 체크리스트와 책임자/연락 체계 명시
+- [ ] 정기 복구 훈련(리플레이/재동기화) 일정 및 증빙 방식 확정
 
-### Phase 10
-- [ ] CI/CD 파이프라인 동작 확인
-- [ ] 배포 후 스모크 테스트 자동화 확인
-- [ ] 재처리/복구 절차 문서화 완료
-- [ ] 토픽 스키마/계약 테스트 CI 연동
+#### 대형 태스크 E3-4: 이벤트 계약 테스트 자동화
+- [ ] 토픽 필수 필드 계약 테스트를 CI 파이프라인에 통합
+- [ ] 계약 불일치 시 fail-fast 규칙과 알림 채널 정의
+- [ ] 업스트림 계약 변경 시 추적 가능한 변경 이력 정책 확정
 
-### Phase 11
-- [ ] 성능/안정화 조치 기록
-- [ ] SLO 목표/알림 정책 확정
-- [ ] 운영/보안/아키텍처 문서 최신화
+## 5) 미완료 단계 최소 완료 게이트
+
+| Stage | 최소 완료 게이트 |
+| --- | --- |
+| F3 (IN PROGRESS) | 상태/버전 이벤트 계약 표준화 완료 + 알림 규칙 운영 적용 증빙 + L2/L3 검증 체계 고정 |
+| E2 (NOT STARTED) | Cloud-Secure 리소스/보안 통제 준비 완료 + 재적재/스모크 리허설 완료 + 컷오버/롤백 기준 승인 |
+| E3 (NOT STARTED) | CI/CD 자동화 파이프라인 동작 + 운영 복구 체계 문서/훈련 완료 + 계약 테스트 CI 상시화 |
+
+## 6) 검증 증빙 경로
+
+- DEC 통합 검증: `.agents/logs/verification/dec207_214/`
+- 관측성 후속 검증: `.agents/logs/verification/bundle_d_followup_20260212/`
+- 본 로드맵 개정 검증 로그:
+  - `.agents/logs/verification/20260212_fe_roadmap_refresh_l0_py_compile.log`
+  - `.agents/logs/verification/20260212_fe_roadmap_refresh_structure_check.log`
+  - `.agents/logs/verification/20260212_fe_roadmap_enhance_l0_py_compile.log`
+  - `.agents/logs/verification/20260212_fe_roadmap_enhance_structure_check.log`
