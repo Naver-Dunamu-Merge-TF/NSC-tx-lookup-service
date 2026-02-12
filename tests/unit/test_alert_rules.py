@@ -6,7 +6,6 @@ from pathlib import Path
 
 import yaml
 
-
 ALERT_RULES_PATH = Path(__file__).resolve().parents[2] / "docker" / "observability" / "alert_rules.yml"
 
 # Known metric names from src/common/metrics.py and src/consumer/metrics.py.
@@ -23,6 +22,7 @@ KNOWN_METRICS = {
     "db_pool_overflow",
     "db_pool_checked_in",
     "db_pool_checkout_latency_seconds",
+    "db_replication_lag_seconds",
     # src/consumer/metrics.py
     "consumer_messages_total",
     "consumer_event_lag_seconds",
@@ -89,3 +89,11 @@ def test_data_freshness_is_critical() -> None:
     freshness_rules = [r for r in rules if r["name"] == "DataFreshnessHigh"]
     assert len(freshness_rules) == 1
     assert freshness_rules[0]["severity"] == "critical"
+
+
+def test_db_replication_lag_rule_is_critical() -> None:
+    """DEC-217: DbReplicationLagHigh must be critical severity."""
+    rules = _load_rules()
+    lag_rules = [r for r in rules if r["name"] == "DbReplicationLagHigh"]
+    assert len(lag_rules) == 1
+    assert lag_rules[0]["severity"] == "critical"

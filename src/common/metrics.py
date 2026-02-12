@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
 
 from opentelemetry import metrics
 from opentelemetry.metrics import CallbackOptions, Observation
@@ -56,6 +56,7 @@ def observe_api_request(
 # --- DB pool Observable Gauges ---
 
 _pool_engine: list[Engine] = []  # populated by register_pool_engine()
+_replication_lag_provider: Callable[[], float | None] | None = None
 
 
 def _pool_size_cb(options: CallbackOptions) -> Sequence[Observation]:
@@ -80,6 +81,18 @@ def _pool_checked_in_cb(options: CallbackOptions) -> Sequence[Observation]:
     if _pool_engine:
         return [Observation(_pool_engine[0].pool.checkedin())]
     return []
+
+
+def _db_replication_lag_cb(options: CallbackOptions) -> Sequence[Observation]:
+    if _replication_lag_provider is None:
+        return []
+    try:
+        lag = _replication_lag_provider()
+    except Exception:
+        return []
+    if lag is None:
+        return []
+    return [Observation(max(0.0, float(lag)))]
 
 
 DB_POOL_SIZE = _meter.create_observable_gauge(
@@ -112,11 +125,28 @@ DB_POOL_CHECKOUT_LATENCY_SECONDS = _meter.create_histogram(
     unit="s",
 )
 
+DB_REPLICATION_LAG_SECONDS = _meter.create_observable_gauge(
+    name="db_replication_lag_seconds",
+    description=(
+        "Replication lag in seconds (primary replay lag or standby replay delay)"
+    ),
+    callbacks=[_db_replication_lag_cb],
+    unit="s",
+)
+
 
 def register_pool_engine(engine: Engine) -> None:
     """Call once after engine creation to enable pool metric callbacks."""
     _pool_engine.clear()
     _pool_engine.append(engine)
+
+
+def register_replication_lag_provider(
+    provider: Callable[[], float | None],
+) -> None:
+    """Register a callback used by db_replication_lag_seconds observable gauge."""
+    global _replication_lag_provider
+    _replication_lag_provider = provider
 
 
 def observe_db_query(
@@ -142,10 +172,12 @@ __all__ = [
     "DB_POOL_CHECKED_OUT",
     "DB_POOL_CHECKOUT_LATENCY_SECONDS",
     "DB_POOL_OVERFLOW",
+    "DB_REPLICATION_LAG_SECONDS",
     "DB_POOL_SIZE",
     "DB_QUERIES_TOTAL",
     "DB_QUERY_LATENCY_SECONDS",
     "observe_api_request",
     "observe_db_query",
     "register_pool_engine",
+    "register_replication_lag_provider",
 ]

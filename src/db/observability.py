@@ -2,14 +2,93 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Callable
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 
 from src.common.config import load_config
-from src.common.metrics import observe_db_query
+from src.common.metrics import observe_db_query, register_replication_lag_provider
 
 logger = logging.getLogger(__name__)
+
+_PRIMARY_REPLICATION_LAG_SQL = text(
+    """
+    SELECT
+      CASE
+        WHEN COUNT(*) = 0 THEN NULL
+        ELSE EXTRACT(EPOCH FROM COALESCE(MAX(replay_lag), INTERVAL '0 seconds'))
+      END AS lag_seconds
+    FROM pg_catalog.pg_stat_replication
+    """
+)
+
+_STANDBY_REPLICATION_LAG_SQL = text(
+    """
+    SELECT
+      CASE
+        WHEN pg_is_in_recovery()
+          THEN EXTRACT(EPOCH FROM now() - pg_last_xact_replay_timestamp())
+        ELSE NULL
+      END AS lag_seconds
+    """
+)
+
+
+def _to_lag_seconds(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+class _ReplicationLagSampler:
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+        self._warned_primary = False
+        self._warned_standby = False
+
+    def sample(self) -> float | None:
+        primary = self._sample_primary()
+        if primary is not None:
+            return primary
+        return self._sample_standby()
+
+    def _sample_primary(self) -> float | None:
+        try:
+            with self._engine.connect() as conn:
+                lag = conn.execute(_PRIMARY_REPLICATION_LAG_SQL).scalar_one_or_none()
+            return _to_lag_seconds(lag)
+        except Exception as exc:
+            if not self._warned_primary:
+                logger.info(
+                    "Primary replication lag metric unavailable: %s",
+                    exc,
+                )
+                self._warned_primary = True
+            return None
+
+    def _sample_standby(self) -> float | None:
+        try:
+            with self._engine.connect() as conn:
+                lag = conn.execute(_STANDBY_REPLICATION_LAG_SQL).scalar_one_or_none()
+            return _to_lag_seconds(lag)
+        except Exception as exc:
+            if not self._warned_standby:
+                logger.info(
+                    "Standby replay lag metric unavailable: %s",
+                    exc,
+                )
+                self._warned_standby = True
+            return None
+
+
+def build_replication_lag_provider(engine: Engine) -> Callable[[], float | None]:
+    """Build a lazy sampler for db_replication_lag_seconds observable gauge."""
+    sampler = _ReplicationLagSampler(engine)
+    return sampler.sample
 
 
 def _normalize_identifier(value: str) -> str:
@@ -109,9 +188,6 @@ def install_sqlalchemy_observability(engine: Engine) -> None:
             table,
         )
 
-    # TODO(DEC-217): Add replication lag metric when Cloud-Secure environment
-    # is finalized. Requires Azure DB for PG read replica + azure_pg_admin role.
-    # Candidate: pg_stat_replication-based Observable Gauge or Azure Monitor
-    # built-in metric. See .specs/decision_open_items.md DEC-217.
+    register_replication_lag_provider(build_replication_lag_provider(engine))
 
     setattr(engine, "_observability_installed", True)

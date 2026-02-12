@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import src.common.metrics as metrics
 from src.common.metrics import (
+    _db_replication_lag_cb,
     _pool_checked_in_cb,
     _pool_checked_out_cb,
     _pool_engine,
     _pool_overflow_cb,
     _pool_size_cb,
     register_pool_engine,
+    register_replication_lag_provider,
 )
 
 
@@ -117,3 +120,37 @@ class TestCheckoutLatencyInSessionScope:
         latency = mock_histogram.record.call_args[0][0]
         assert isinstance(latency, float)
         assert latency >= 0
+
+
+class TestReplicationLagCallback:
+    def setup_method(self):
+        metrics._replication_lag_provider = None
+
+    def teardown_method(self):
+        metrics._replication_lag_provider = None
+
+    def test_replication_lag_cb_returns_empty_without_provider(self) -> None:
+        assert _db_replication_lag_cb(None) == []
+
+    def test_replication_lag_cb_returns_value_when_available(self) -> None:
+        register_replication_lag_provider(lambda: 3.25)
+        result = _db_replication_lag_cb(None)
+        assert len(result) == 1
+        assert result[0].value == 3.25
+
+    def test_replication_lag_cb_clamps_negative(self) -> None:
+        register_replication_lag_provider(lambda: -1.0)
+        result = _db_replication_lag_cb(None)
+        assert len(result) == 1
+        assert result[0].value == 0.0
+
+    def test_replication_lag_cb_returns_empty_on_none(self) -> None:
+        register_replication_lag_provider(lambda: None)
+        assert _db_replication_lag_cb(None) == []
+
+    def test_replication_lag_cb_returns_empty_on_exception(self) -> None:
+        def _raise() -> float:
+            raise RuntimeError("boom")
+
+        register_replication_lag_provider(_raise)
+        assert _db_replication_lag_cb(None) == []

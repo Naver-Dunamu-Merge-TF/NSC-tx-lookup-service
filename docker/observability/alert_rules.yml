@@ -101,14 +101,16 @@ rules:
       | summarize p95 = percentile(value, 95) by bin(timestamp, 5m)
       | where p95 > 1.0
 
-  # --- Deferred: DB replication lag (DEC-217, status: blocked) ---
-  # Requires: Azure DB for PG read replica + azure_pg_admin role
-  # Implementation: periodic pg_stat_replication query or Azure Monitor built-in metric
-  # Trigger: Cloud-Secure operational environment monitoring standard finalized
-  #
-  # - name: DbReplicationLagHigh
-  #   metric: db_replication_lag_seconds
-  #   condition: "> 10"
-  #   window: 5m
-  #   severity: critical
-  #   description: "DB replication lag exceeds 10s"
+  # --- DB replication lag ---
+
+  - name: DbReplicationLagHigh
+    metric: db_replication_lag_seconds
+    condition: "> 10"
+    window: 5m
+    severity: critical
+    description: "DB replication lag exceeds 10s"
+    kql: |
+      customMetrics
+      | where name == "db_replication_lag_seconds"
+      | summarize max_lag = max(value) by bin(timestamp, 5m)
+      | where max_lag > 10
