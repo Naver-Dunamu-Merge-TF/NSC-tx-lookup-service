@@ -122,7 +122,7 @@
 - 결정(Phase 8): Cloud-Test는 owner별로 분리된 Event Hubs namespace를 사용했다.
 - 결정(Phase 9 이후): 기존 공유 Event Hubs namespace를 활용한다. tx-lookup-service는 토픽(hub)만 소유하고, namespace는 생성하지 않는다.
 - 영향: 리소스 중복 제거, 운영 일관성 확보
-- 근거: `.roadmap/implementation_roadmap.md`, `.specs/cloud_migration_rebuild_plan.md`, 전체 아키텍처 다이어그램
+- 근거: `.roadmap/implementation_roadmap.md`, `.specs/infra/cloud_migration_rebuild_plan.md`, 전체 아키텍처 다이어그램
 
 ### DEC-105 Cloud 런타임
 
@@ -130,42 +130,42 @@
 - 결정(Phase 8): Cloud-Test는 `Event Hubs(Kafka) + Azure Container Apps`로 구성했다.
 - 결정(Phase 9 이후): Cloud-Secure는 `Event Hubs(Kafka) + AKS(RG 공유 클러스터)`로 구성한다. tx-lookup-service는 공유 AKS 클러스터에 namespace 분리 배포한다.
 - 영향: AKS를 조직 표준 실행 환경으로 채택, Container Apps는 Phase 8 테스트 한정
-- 근거: `.roadmap/implementation_roadmap.md`, `.specs/cloud_phase8_execution_report.md`, 전체 아키텍처 다이어그램
+- 근거: `.roadmap/implementation_roadmap.md`, `.specs/archive/cloud_phase8_execution_report.md`, 전체 아키텍처 다이어그램
 
 ### DEC-106 Cloud-Test 시크릿 전달
 
 - 상태: **결정됨(2026-02-09)**
 - 결정: Cloud-Test는 SAS/env 주입을 우선하고, Key Vault + Managed Identity는 secure rebuild 단계로 이연한다.
 - 영향: 테스트 속도 우선(보안 하드닝은 별도 환경에서)
-- 근거: `.specs/cloud_migration_rebuild_plan.md`
+- 근거: `.specs/infra/cloud_migration_rebuild_plan.md`
 
 ### DEC-107 Event Hubs baseline contract(Phase 8 test)
 
 - 상태: **결정됨(2026-02-09)**
 - 결정: hubs=`ledger.entry.upserted`, `payment.order.upserted`; partition=2; retention=3d; consumer group naming=`bo-sync-<env>-<owner>-v1`.
 - 영향: 프로비저닝/배포 자동화가 계약값에 의존
-- 근거: `.specs/cloud_migration_rebuild_plan.md`, `.specs/cloud_phase8_execution_report.md`
+- 근거: `.specs/infra/cloud_migration_rebuild_plan.md`, `.specs/archive/cloud_phase8_execution_report.md`
 
 ### DEC-108 Cloud 승격 모델
 
 - 상태: **결정됨(2026-02-09)**
 - 결정: Cloud-Test(disposable/public) -> Cloud-Secure(separate/secured) 2단계 승격, in-place hardening 금지.
 - 영향: 보안 적용은 별도 리소스에서 재검증 후 컷오버
-- 근거: `.specs/cloud_migration_rebuild_plan.md`, `.specs/backoffice_project_specs.md`
+- 근거: `.specs/infra/cloud_migration_rebuild_plan.md`, `.specs/backoffice_project_specs.md`
 
 ### DEC-109 Container Apps test naming
 
 - 상태: **결정됨(2026-02-09)**
 - 결정: `team4-txlookup-*` 패턴을 유지하되, Container Apps 계열은 32자 제한으로 축약 패턴을 사용한다.
 - 영향: Azure naming limit 회피
-- 근거: `.specs/cloud_migration_rebuild_plan.md`, ~~`scripts/cloud/phase8/provision_resources.sh`~~ (제거됨), `.specs/cloud_phase8_execution_report.md`
+- 근거: `.specs/infra/cloud_migration_rebuild_plan.md`, ~~`scripts/cloud/phase8/provision_resources.sh`~~ (제거됨), `.specs/archive/cloud_phase8_execution_report.md`
 
 ### DEC-110 Destroy/Recreate test under RG lock
 
 - 상태: **결정됨(2026-02-09)**
 - 결정: RG lock으로 delete가 막히면 consumer scale cycle(`min 1 -> 0 -> 1`)로 recreate를 대체 검증한다.
 - 영향: lock 환경에서도 파이프라인 복구 동선 확보
-- 근거: ~~`scripts/cloud/phase8/destroy_recreate_check.sh`~~ (제거됨), `.specs/cloud_phase8_execution_report.md`
+- 근거: ~~`scripts/cloud/phase8/destroy_recreate_check.sh`~~ (제거됨), `.specs/archive/cloud_phase8_execution_report.md`
 
 ### DEC-111 Azure 리소스 소유 모델(Cloud-Secure)
 
@@ -177,7 +177,7 @@
   - **플랫폼 소유**: App Gateway, Bastion, Firewall, VNet, Private DNS Zone
   - **비범위**: Confidential Ledger(CryptoSvc), SQL Database(AccountSvc), Databricks, ADLS Gen2
 - 영향: 리소스 생성은 인프라팀이 수행한다. 이 레포는 네이밍 컨벤션과 리소스 요구사항만 정의하고 인프라팀에 전달한다.
-- 근거: 전체 아키텍처 다이어그램 분석, `.specs/backoffice_project_specs.md` 10.3항, `.specs/cloud_migration_rebuild_plan.md`
+- 근거: 전체 아키텍처 다이어그램 분석, `.specs/backoffice_project_specs.md` 10.3항, `.specs/infra/cloud_migration_rebuild_plan.md`
 
 ### DEC-201 DLQ 저장소(Cloud-Secure/Prod)
 
@@ -232,7 +232,7 @@
 - 상태: **결정됨(2026-02-12)**
 - 결정: 카프카 프로듀서 코드(이벤트 발행)는 업스트림 서비스(CryptoSvc, AccountSvc, CommerceSvc)가 소유한다. tx-lookup-service는 컨슈머 전용이다. 카프카/모니터링 인프라 프로비저닝은 인프라팀이 수행한다.
 - 영향: Phase 8 프로비저닝 스크립트(`scripts/cloud/phase8/`) 제거. 이벤트 계약(스키마)은 `configs/topic_checklist.md`에서 정의하고 업스트림 팀에 전달한다.
-- 근거: 팀 간 업무 범위 조정, `.specs/backoffice_project_specs.md` 10.3항, `.specs/entire_architecture.md`
+- 근거: 팀 간 업무 범위 조정, `.specs/backoffice_project_specs.md` 10.3항, `.specs/reference/entire_architecture.md`
 
 ### DEC-207 갭 1 - API 엔드포인트/응답 계약 점검
 
@@ -324,14 +324,14 @@
 - 근거(문서/코드 경로): `AGENTS.md` Testing strategy, `tests/unit/test_api_routes.py`, `tests/integration/test_db_integration.py`, `tests/unit/test_processor.py`, `.agents/logs/verification/dec207_214/12_test_coverage_rg.log`
 - 영향: 권한/정합성 회귀가 발생해도 CI에서 조기 탐지되지 않을 수 있다.
 - 개선안 설계: `tests/unit/test_api_routes.py`에 403 케이스, `tests/integration/test_db_integration.py`에 혼합 metadata upsert 케이스, `tests/integration/test_admin_tx_integration.py`에 다건 peer fallback 케이스를 추가한다.
-- 검증 계획: 단위(`pytest tests/unit/...`) + 통합(`pytest tests/integration/...`) 분리 실행 후 실패 시나리오를 회귀셋으로 고정한다.
+- 검증 계획: 단위(`.venv/bin/python -m pytest tests/unit/...`) + 통합(`.venv/bin/python -m pytest tests/integration/...`) 분리 실행 후 실패 시나리오를 회귀셋으로 고정한다.
 - 재검토 트리거: 신규 endpoint 추가 또는 LWW/pairing 조건식 변경 시.
 
 ### DEC-214 갭 8 - 문서 참조 무결성/드리프트 점검
 
 - 상태: **결정됨(일치, 2026-02-12)**
-- 확인 결과: `.specs/SRS - Software Requirements Specification.md` 파일이 정상적으로 존재하며, `.specs/backoffice_db_admin_api.md` 및 `.specs/backoffice_project_specs.md`의 참조 경로와 일치한다. 최초 갭 판정은 파일명 공백으로 인한 검증 스크립트 오류(False Positive)였다.
-- 근거(문서/코드 경로): `.specs/SRS - Software Requirements Specification.md`, `.specs/backoffice_db_admin_api.md`, `.specs/backoffice_project_specs.md`, `.agents/logs/verification/dec207_214/09_specs_ls.log`
+- 확인 결과: `.specs/requirements/SRS - Software Requirements Specification.md` 파일이 정상적으로 존재하며, `.specs/backoffice_db_admin_api.md` 및 `.specs/backoffice_project_specs.md`의 참조 경로와 일치한다. 최초 갭 판정은 파일명 공백으로 인한 검증 스크립트 오류(False Positive)였다.
+- 근거(문서/코드 경로): `.specs/requirements/SRS - Software Requirements Specification.md`, `.specs/backoffice_db_admin_api.md`, `.specs/backoffice_project_specs.md`, `.agents/logs/verification/dec207_214/09_specs_ls.log`
 - 영향: 스키마 관점에서 즉시 수정이 필요한 차이는 없다.
 - 재검토 트리거: SRS 저장소를 별도 repo로 분리해 서브모듈/URL 참조 정책이 바뀌는 경우.
 
@@ -358,20 +358,21 @@
 
 ### DEC-217 갭 6-추가 - DB 관측 지표 커버리지(풀/리플리카)
 
-- 상태: **부분 해결(풀 메트릭 구현 완료, 리플리케이션 랙 보류, 2026-02-12)**
-- 확인 결과: slow query와 query latency는 수집하지만, spec에 명시된 DB connection pool/replication lag 지표는 코드에 없다.
-- 갭 설명: `src/db/observability.py`, `src/common/metrics.py`에는 풀 상태/리플리카 지연 계측 항목이 없다.
+- 상태: **해결됨(구현 완료, 2026-02-12)**
+- 확인 결과: slow query/query latency + pool 상태 + replication lag까지 계측 경로를 갖췄다.
+- 갭 설명(기존): `src/db/observability.py`, `src/common/metrics.py`에는 풀 상태/리플리카 지연 계측 항목이 없어 DB 병목 원인 분리가 어려웠다.
 - 근거: `.specs/backoffice_project_specs.md` 8.1, `src/db/observability.py`, `src/common/metrics.py`, `.agents/logs/verification/dec207_214/07_observability_rg.log`
 - 영향: DB 병목 원인을 API/consumer 지표만으로 분리 진단하기 어렵다.
-- 구현(풀 메트릭):
+- 구현:
   - `src/common/metrics.py` — Observable Gauge 4개(`db_pool_size`, `db_pool_checked_out`, `db_pool_overflow`, `db_pool_checked_in`) + Histogram 1개(`db_pool_checkout_latency_seconds`) 추가. `register_pool_engine()` 함수로 엔진 등록.
   - `src/db/session.py` — `get_engine()`에서 `register_pool_engine()` 호출 + `session_scope()`에 checkout latency 계측 추가.
-  - `src/db/observability.py` — replication lag TODO 주석 추가.
-  - `tests/unit/test_db_pool_metrics.py` — 콜백 함수 + checkout latency 단위 테스트 (10건).
-  - `docker/observability/alert_rules.yml` — DbPoolExhausted, DbPoolCheckoutSlow rule 추가.
-- 검증: L0(py_compile) 통과, L1(단위 테스트) 통과.
-- 보류(리플리케이션 랙): Azure DB for PG 읽기 복제본 구성 + `azure_pg_admin` 역할 확인 후 `pg_stat_replication` 기반 수집 PoC 진행. `alert_rules.yml`에 주석 처리된 placeholder 추가.
-- 재검토 트리거: Cloud-Secure 운영 환경 모니터링 표준이 확정되는 시점.
+  - `src/common/metrics.py` — Observable Gauge `db_replication_lag_seconds` + `register_replication_lag_provider()` 추가.
+  - `src/db/observability.py` — replication lag provider 구현(1차 `pg_stat_replication` 조회, 2차 `pg_last_xact_replay_timestamp()` fallback) 및 엔진 observability 설치 시 provider 등록.
+  - `docker/observability/alert_rules.yml` — `DbReplicationLagHigh`(critical, `>10s/5m`) rule 추가.
+  - `tests/unit/test_alert_rules.py` — `db_replication_lag_seconds` allowlist 및 `DbReplicationLagHigh` severity 테스트 추가.
+  - `tests/unit/test_db_pool_metrics.py` — replication lag callback/provider 단위 테스트 추가.
+- 검증: L0(py_compile) 통과, L1(unit) 통과. 실행 인터프리터 차이로 발생한 의존성 이슈는 아래 실행 로그 섹션에 기록.
+- 재검토 트리거: Cloud-Secure에서 read-replica 토폴로지/권한 정책이 변경되어 SQL 기반 lag 계산식 조정이 필요한 경우.
 
 ## DEC-207~217 의존성 작업 묶음
 
@@ -406,8 +407,7 @@
 - 선행 이유: 메트릭/알림 설계는 최종 API/DB 동작과 role/pairing 정책을 반영해야 이름/임계치 드리프트를 줄일 수 있다.
 - 산출:
   - DEC-212: `docker/observability/alert_rules.yml` 신규 생성 — 6 baseline alert rule(KQL 스니펫 포함) + `tests/unit/test_alert_rules.py` 메트릭명 드리프트 방지 테스트
-  - DEC-217(풀): `src/common/metrics.py`에 Observable Gauge 4개 + Histogram 1개 + `register_pool_engine()`, `src/db/session.py` checkout latency 계측, `tests/unit/test_db_pool_metrics.py` 단위 테스트
-  - DEC-217(리플리케이션 랙): 보류 — `alert_rules.yml` placeholder + `src/db/observability.py` TODO
+  - DEC-217: `src/common/metrics.py`에 Observable Gauge 5개(풀 4 + replication lag 1) + Histogram 1개 + `register_pool_engine()`/`register_replication_lag_provider()`, `src/db/session.py` checkout latency 계측, `src/db/observability.py` replication lag provider, `tests/unit/test_db_pool_metrics.py`/`tests/unit/test_alert_rules.py` 회귀 테스트
   - DEC-216 skip metric: `pairing_skipped_non_payment_order_total` Counter 구현 (`src/consumer/metrics.py`, `src/consumer/processor.py`)
 
 ### 묶음 E - 검증 체계 마감
@@ -433,14 +433,38 @@
 ## DEC-207~214 실행 검증 결과 (2026-02-12)
 
 - 증빙 로그 경로: `.agents/logs/verification/dec207_214/`
+- 검증 실행 기준: 프로젝트 가상환경 인터프리터(`.venv/bin/python`) 사용
 - 증빙 수집 명령 실행: 완료 (`01`~`12` 로그)
 - 테스트 실행 결과:
-  - `pytest tests/unit/test_api_routes.py tests/unit/test_api_service.py tests/unit/test_auth.py tests/unit/test_processor.py tests/unit/test_pairing.py -x` 실패
+  - (참고/비표준 실행) 시스템 인터프리터 `pytest`로 단위 대상 테스트 실행 시 실패
   - 실패 사유: `ModuleNotFoundError: No module named 'fastapi'`
   - 로그: `.agents/logs/verification/dec207_214/13_unit_targeted_pytest.log`
-  - `pytest tests/integration/test_db_integration.py -x` 실패
+  - (참고/비표준 실행) 시스템 인터프리터 `pytest`로 통합 대상 테스트 실행 시 실패
   - 실패 사유: `ModuleNotFoundError: No module named 'sqlalchemy'`
   - 로그: `.agents/logs/verification/dec207_214/14_integration_db_pytest.log`
+  - `.venv/bin/python -m pytest tests/unit/test_api_routes.py tests/unit/test_api_service.py tests/unit/test_auth.py tests/unit/test_processor.py tests/unit/test_pairing.py -x` 성공
+  - 로그: `.agents/logs/verification/dec207_214/17_l1_targeted_unit_venv.log`
+  - `.venv/bin/python -m pytest tests/integration/test_db_integration.py -x` 성공
+  - 로그: `.agents/logs/verification/dec207_214/18_l1_integration_db_venv.log`
 - L0 검증:
-  - `python -m py_compile $(find src -name '*.py')` 성공
-  - 로그: `.agents/logs/verification/dec207_214/15_l0_py_compile.log`
+  - `.venv/bin/python -m py_compile $(find src -name '*.py')` 성공
+  - 로그: `.agents/logs/verification/dec207_214/19_l0_py_compile_venv.log` (기존 참고: `15_l0_py_compile.log`)
+
+## 묶음 D 후속(DEC-217) 실행 검증 결과 (2026-02-12)
+
+- 증빙 로그 경로: `.agents/logs/verification/bundle_d_followup_20260212/`
+- 검증 실행 기준: 프로젝트 가상환경 인터프리터(`.venv/bin/python`) 사용
+- L0 검증:
+  - `.venv/bin/python -m py_compile $(find src -name '*.py')` 성공
+  - 로그: `16_l0_py_compile_venv.log` (기존 참고: `01_l0_py_compile.log`, `13_l0_py_compile_final.log`)
+- L1 검증:
+  - (참고/비표준 실행) 시스템 인터프리터 `pytest`로 대상 단위 테스트 실행 시 실패
+  - 실패 사유: 실행 인터프리터 환경(`pytest` 커맨드, Python 3.12)에서 `opentelemetry` 미설치
+  - 로그: `02_l1_targeted_pytest.log`, `04_l1_targeted_pytest_after_install.log`
+  - `.venv/bin/python -m pytest tests/unit/test_alert_rules.py tests/unit/test_db_pool_metrics.py tests/unit/test_config.py -x` 성공
+  - 로그: `14_l1_targeted_venv.log` (기존 참고: `05_l1_targeted_python_pytest.log`, `11_l1_targeted_after_ruff_fix.log`)
+  - `.venv/bin/python -m pytest tests/unit/ -x` 성공
+  - 로그: `15_l1_unit_full_venv.log` (기존 참고: `06_l1_unit_full.log`, `12_l1_unit_full_after_ruff_fix.log`)
+- 정적 점검:
+  - 변경 파일 대상 `ruff check` 성공
+  - 로그: `10_ruff_touched_after_fix.log`

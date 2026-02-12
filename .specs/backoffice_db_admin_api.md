@@ -3,7 +3,7 @@
 > **연계 문서**
 > - 프로젝트 스펙(Serving): `.specs/backoffice_project_specs.md`
 > - 데이터 프로젝트(동기화): `.specs/backoffice_data_project.md`
-> - 요구사항(원본/참고): `.specs/SRS - Software Requirements Specification.md` (FR-ADM-02)
+> - 요구사항(원본/참고): `.specs/requirements/SRS - Software Requirements Specification.md` (FR-ADM-02)
 > - Lakehouse 스펙(비범위/보조 경로 참고): `.specs/project_specs.md`
 >
 > **목표**: `tx_id` 기반 **초 단위(near real-time)** 거래 추적 조회(관리자 화면/툴)

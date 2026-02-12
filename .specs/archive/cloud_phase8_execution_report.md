@@ -115,4 +115,4 @@ Container build assets:
 
 - Container Apps names were shortened from the original naming proposal to meet Azure length constraints.
 - RG lock behavior is retained; Phase 9 secure environment should assume separate, lock-aware deployment policy.
-- Persistent naming/tag/guardrail policy was moved to `.specs/cloud_migration_rebuild_plan.md` section `3.3`.
+- Persistent naming/tag/guardrail policy was moved to `.specs/infra/cloud_migration_rebuild_plan.md` section `3.3`.

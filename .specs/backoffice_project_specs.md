@@ -217,7 +217,7 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 > PostgreSQL만 서비스 전용으로 요청한다. AKS/ACR/Key Vault/App Insights/Log Analytics는 RG 공유 리소스를 활용하며,
 > 서비스 격리는 namespace/리포지토리/secret prefix/cloud_roleName으로 구분한다.
 > Event Hubs namespace는 이미 존재하며 토픽(hub)만 이 서비스가 소유한다.
-> 네이밍 컨벤션 상세는 `.specs/cloud_migration_rebuild_plan.md` 3.3항 참조.
+> 네이밍 컨벤션 상세는 `.specs/infra/cloud_migration_rebuild_plan.md` 3.3항 참조.
 >
 > **이벤트 발행 책임**: 카프카 프로듀서 코드는 업스트림 서비스(CryptoSvc, AccountSvc, CommerceSvc)가 소유한다.
 > tx-lookup-service는 컨슈머 전용이며, 이벤트 계약(스키마)은 `configs/topic_checklist.md`에서 정의한다.
@@ -227,7 +227,7 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 
 - `local`(Docker Compose) + Azure 단일 소스(환경 분리 없음)
 - 설정은 12-factor 원칙(환경변수/시크릿)로 관리하고, 저장소에 자격 증명은 커밋하지 않는다.
-- 네이밍 컨벤션: `.specs/azure_naming_convention.md` 참조
+- 네이밍 컨벤션: `.specs/infra/cloud_migration_rebuild_plan.md` 3.3항 참조
 
 ### 10.5 CI/CD(초안)
 

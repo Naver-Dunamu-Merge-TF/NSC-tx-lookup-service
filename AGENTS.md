@@ -125,6 +125,9 @@ Verification policy
 
  - Verification is mandatory. Do not claim completion without running an
    appropriate verification level.
+ - Python/pytest verification commands must run with the project virtualenv
+   interpreter (`.venv/bin/python`). Do not use system `python`/`pytest` for
+   gate evidence.
  - Store evidence under `.agents/logs/verification/`.
  - Do not encode verification level in commit messages.
 
@@ -132,9 +135,9 @@ Verification policy
 
 | Level | When | Command |
 |-------|------|---------|
-| L0 | Per edit | `python -m py_compile` |
-| L1 | Pre-commit | `pytest tests/unit/ -x` |
-| L2 | Pre-PR | `pytest --cov-fail-under=80` |
+| L0 | Per edit | `.venv/bin/python -m py_compile $(find src -name '*.py')` |
+| L1 | Pre-commit | `.venv/bin/python -m pytest tests/unit/ -x` |
+| L2 | Pre-PR | `.venv/bin/python -m pytest --cov-fail-under=80` |
 | L3 | Pre-merge | Docker Compose E2E |
 
 **Escalation:** L3 required for pairing logic or response schema changes.
@@ -157,7 +160,7 @@ Key references
 
 | Document | Content |
 |----------|---------|
-| `.specs/SRS - Software Requirements Specification.md` | Requirements (FR-ADM-02) |
+| `.specs/requirements/SRS - Software Requirements Specification.md` | Requirements (FR-ADM-02) |
 | `.specs/backoffice_project_specs.md` | Project specs, Decision Lock |
 | `.specs/backoffice_db_admin_api.md` | DB + API design |
 | `.specs/backoffice_data_project.md` | Sync specs |
