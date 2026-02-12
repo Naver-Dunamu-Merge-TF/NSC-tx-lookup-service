@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import time
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.common.config import load_config
+from src.common.metrics import DB_POOL_CHECKOUT_LATENCY_SECONDS, register_pool_engine
 from src.db.observability import install_sqlalchemy_observability
 
 _ENGINE = None
@@ -25,6 +27,7 @@ def get_engine():
             pool_recycle=config.db_pool_recycle,
         )
         install_sqlalchemy_observability(_ENGINE)
+        register_pool_engine(_ENGINE)
     return _ENGINE
 
 
@@ -39,7 +42,9 @@ def get_session_factory() -> sessionmaker[Session]:
 
 @contextmanager
 def session_scope() -> Session:
+    t0 = time.perf_counter()
     session = get_session_factory()()
+    DB_POOL_CHECKOUT_LATENCY_SECONDS.record(time.perf_counter() - t0)
     try:
         yield session
         session.commit()

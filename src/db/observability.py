@@ -109,4 +109,9 @@ def install_sqlalchemy_observability(engine: Engine) -> None:
             table,
         )
 
+    # TODO(DEC-217): Add replication lag metric when Cloud-Secure environment
+    # is finalized. Requires Azure DB for PG read replica + azure_pg_admin role.
+    # Candidate: pg_stat_replication-based Observable Gauge or Azure Monitor
+    # built-in metric. See .specs/decision_open_items.md DEC-217.
+
     setattr(engine, "_observability_installed", True)

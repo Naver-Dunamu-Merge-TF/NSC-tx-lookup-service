@@ -236,24 +236,34 @@
 
 ### DEC-207 갭 1 - API 엔드포인트/응답 계약 점검
 
-- 상태: **결정됨(갭 확인, 2026-02-12)**
+- 상태: **해결됨(구현 완료, 2026-02-12)**
 - 확인 결과: 필수 `GET /admin/tx/{tx_id}`의 404/INCOMPLETE/UNKNOWN 응답 정책은 구현과 일치하나, 권장 엔드포인트 2개는 미구현 상태다.
 - 갭 설명: `.specs/backoffice_project_specs.md` 1.1, `.specs/backoffice_db_admin_api.md` 5.2에 있는 권장 엔드포인트 `GET /admin/payment-orders/{order_id}`, `GET /admin/wallets/{wallet_id}/tx`가 `src/api/main.py`에 없다.
-- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md`, `.specs/backoffice_db_admin_api.md`, `src/api/main.py`, `src/api/service.py`, `.agents/logs/verification/dec207_214/01_api_routes_rg.log`, `.agents/logs/verification/dec207_214/08_docs_contract_rg.log`
+- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md`, `.specs/backoffice_db_admin_api.md`, `src/api/main.py`, `src/api/service.py`, `src/api/schemas.py`, `src/db/admin_tx.py`, `src/api/constants.py`, `tests/unit/test_api_routes.py`, `tests/unit/test_api_service.py`, `tests/integration/test_admin_tx_integration.py`
 - 영향: 운영/CS 조회 동선이 `tx_id` 단건 조회에만 묶여, 주문/지갑 관점 조회 요구를 API 레벨에서 직접 처리할 수 없다.
-- 개선안 설계: `src/api/main.py`에 2개 라우트를 추가하고, `src/db/admin_tx.py`에 order/wallet 조회 쿼리를 분리한다. `src/api/schemas.py`에 리스트 응답 스키마를 추가하고 `tests/unit/test_api_routes.py`, `tests/integration/test_admin_tx_integration.py`에 200/404/limit/time-range 케이스를 보강한다.
-- 검증 계획: 신규 라우트 단위 테스트 + 통합 테스트(정상/빈 결과/limit/from-to) + 기존 `GET /admin/tx/{tx_id}` 회귀 테스트를 같은 파이프라인에서 실행한다.
+- 구현:
+  - `GET /admin/payment-orders/{order_id}`: 주문 기준 페어링 조회 (404 if not found). `AdminOrderResponse` = 주문 상세 + 원장 엔트리 목록 + 전체 페어링 상태.
+  - `GET /admin/wallets/{wallet_id}/tx?from=&to=&limit=`: 지갑 기준 거래 리스트 (200 + 빈 리스트). `AdminWalletTxResponse` = 지갑ID + 엔트리 목록 + 건수. limit(1~100, 기본 20), from/to(ISO 8601).
+  - 스키마: `LedgerEntryItem`, `PaymentOrderDetail`, `AdminOrderResponse`, `AdminWalletTxResponse` (`src/api/schemas.py`)
+  - DB 쿼리: `fetch_admin_order_context()`, `fetch_admin_wallet_tx()` (`src/db/admin_tx.py`)
+  - 서비스: `build_admin_order_response()`, `build_admin_wallet_tx_response()`, `_build_ledger_entry_item()` (`src/api/service.py`)
+  - 감사: 두 엔드포인트 모두 `result_count` 기록 (DEC-208 연동)
+- 검증: L0(py_compile) 통과, L1(단위 테스트 128건) 통과, 커버리지 81.32%(80% 게이트 통과). 통합 테스트는 Docker DB 필요(L1+).
 - 재검토 트리거: 서비스 범위를 F1(`tx_id` 단건 전용)로 공식 축소 결정하는 경우.
 
 ### DEC-208 갭 2 - RBAC/감사로그 계약 점검
 
-- 상태: **결정됨(갭 확인, 2026-02-12)**
+- 상태: **해결됨(구현 완료, 2026-02-12)**
 - 확인 결과: 감사로그의 핵심 필드(`who/when/what/ip/user_agent`)는 기록되지만, spec에 명시된 `result_count` 필드는 저장되지 않는다.
 - 갭 설명: `bo.admin_audit_logs` 스키마와 `build_audit_fields()`에 `result_count`가 없다.
-- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md` 7, `src/api/audit.py`, `src/db/models.py`, `migrations/versions/20260205_0003_create_admin_audit_logs.py`, `.agents/logs/verification/dec207_214/02_rbac_audit_rg.log`, `.agents/logs/verification/dec207_214/11_result_count_admin_audit_rg.log`
-- 영향: 감사로그에서 “조회 결과 건수”를 기반으로 이상 조회 패턴을 집계하기 어렵다.
-- 개선안 설계: `bo.admin_audit_logs`에 `result_count` 컬럼(nullable int)를 추가하는 migration revision을 설계하고, `src/api/main.py`에서 `tx_id` 단건 조회는 `FOUND=1`, `NOT_FOUND=0`으로 기록한다. 향후 list endpoint 도입 시 실제 count를 공통 필드로 재사용한다.
-- 검증 계획: migration 적용/롤백 테스트 + 감사로그 적재 통합 테스트(`FOUND`, `NOT_FOUND` 각각 count 검증).
+- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md` 7, `src/api/audit.py`, `src/db/models.py`, `migrations/versions/20260205_0003_create_admin_audit_logs.py`, `migrations/versions/20260212_0005_add_audit_result_count.py`, `tests/unit/test_api_routes.py`, `tests/integration/test_admin_tx_integration.py`
+- 영향: 감사로그에서 "조회 결과 건수"를 기반으로 이상 조회 패턴을 집계하기 어렵다.
+- 구현:
+  - Migration: `migrations/versions/20260212_0005_add_audit_result_count.py` — `bo.admin_audit_logs`에 `result_count INTEGER NULL` 컬럼 추가
+  - Model: `src/db/models.py` `AdminAuditLog.result_count` 필드 추가
+  - Audit: `src/api/audit.py` `build_audit_fields()` 에 `result_count: int | None = None` 파라미터 추가
+  - Route: `GET /admin/tx/{tx_id}`에서 `FOUND=1`, `NOT_FOUND=0` 기록. 신규 엔드포인트(DEC-207)에서 실제 건수 기록.
+- 검증: L0(py_compile) 통과, L1(단위 테스트 128건) 통과. 통합 테스트(`result_count` 영속성)는 Docker DB 필요(L1+).
 - 재검토 트리거: 감사 정책에서 `result_count`를 메트릭 시스템으로 이관하고 DB 저장을 제외하기로 합의되는 경우.
 
 ### DEC-209 갭 3 - Serving DB 스키마/인덱스 계약 점검
@@ -293,13 +303,17 @@
 
 ### DEC-212 갭 6 - 관측성/SLO/알림 계약 점검
 
-- 상태: **결정됨(갭 확인, 2026-02-12)**
+- 상태: **해결됨(구현 완료, 2026-02-12)**
 - 확인 결과: API/Consumer/DB 기본 메트릭은 존재하지만, 문서/DEC에서 기준으로 참조하는 alert rule 파일이 저장소에 없다.
 - 갭 설명: `docker/observability/alert_rules.yml` 경로가 구현체에 없어서 baseline 알림 정책을 코드/운영 설정으로 추적할 수 없다.
 - 근거(문서/코드 경로): `.specs/backoffice_project_specs.md` 8, `src/api/observability.py`, `src/common/metrics.py`, `src/consumer/metrics.py`, `src/db/observability.py`, `.agents/logs/verification/dec207_214/07_observability_rg.log`, `.agents/logs/verification/dec207_214/10_alert_rules_presence.log`
 - 영향: SLO 위반 시 경보 기준이 문서상 선언만 있고 배포 산출물에서 검증되지 않는다.
-- 개선안 설계: `docker/observability/alert_rules.yml`를 복원/신규 작성해 DEC-010/DEC-202 임계치와 현재 OTel metric name을 1:1 매핑한다. 환경별 severity 차이는 values 파일 또는 변수로 분리한다.
-- 검증 계획: alert rule 정적 검증(promtool 등) + 메트릭명 호환성 점검 + 로컬 synthetic 알람 시뮬레이션.
+- 구현:
+  - `docker/observability/alert_rules.yml` 신규 생성 — 플랫폼 무관 참조 YAML + Azure Monitor KQL 스니펫
+  - 6개 baseline rule: ApiLatencyHigh(WARNING), ApiErrorRateHigh(WARNING), DataFreshnessHigh(CRITICAL), DlqActivity(WARNING), DbPoolExhausted(WARNING), DbPoolCheckoutSlow(WARNING)
+  - DEC-010/DEC-202 임계치와 OTel metric name 1:1 매핑 완료
+  - `tests/unit/test_alert_rules.py` — 메트릭명 드리프트 방지 CI 테스트 (6건)
+- 검증: L0(py_compile) 통과, L1(단위 테스트) 통과.
 - 재검토 트리거: Alerting 플랫폼이 Prometheus rule이 아닌 Azure Monitor Alert Rule로 완전 전환되는 경우.
 
 ### DEC-213 갭 7 - 테스트 커버리지 계약 점검
@@ -339,18 +353,24 @@
 - 개선안 설계: 호출 조건을 `related_type in {None, PAYMENT_ORDER}`로 제한하고, 명시적 비대상 타입은 skip metric(`pairing_skipped_non_payment_order_total`)으로 분리 관측한다.
 - 구현: `src/consumer/processor.py` 가드 조건을 `event.related_id and event.related_type in (None, "PAYMENT_ORDER")`로 변경. `tests/unit/test_processor.py`에 3개 시나리오 추가(`test_upsert_ledger_entry_skips_pairing_for_non_payment_order`, `test_upsert_ledger_entry_pairs_when_related_type_none`, `test_upsert_ledger_entry_pairs_when_related_type_payment_order`).
 - 검증: L0(py_compile) 통과, L1(단위 테스트 8건) 통과.
-- 참고: skip metric 추가는 묶음 D(관측성)에서 검토한다.
+- skip metric: 묶음 D에서 `pairing_skipped_non_payment_order_total` Counter 구현 완료 (`src/consumer/metrics.py`, `src/consumer/processor.py`).
 - 재검토 트리거: 멀티 도메인 pairing(`related_type` 확장)을 공식 지원하기로 결정되는 경우.
 
 ### DEC-217 갭 6-추가 - DB 관측 지표 커버리지(풀/리플리카)
 
-- 상태: **보류(협의 필요, 2026-02-12)**
+- 상태: **부분 해결(풀 메트릭 구현 완료, 리플리케이션 랙 보류, 2026-02-12)**
 - 확인 결과: slow query와 query latency는 수집하지만, spec에 명시된 DB connection pool/replication lag 지표는 코드에 없다.
 - 갭 설명: `src/db/observability.py`, `src/common/metrics.py`에는 풀 상태/리플리카 지연 계측 항목이 없다.
 - 근거: `.specs/backoffice_project_specs.md` 8.1, `src/db/observability.py`, `src/common/metrics.py`, `.agents/logs/verification/dec207_214/07_observability_rg.log`
 - 영향: DB 병목 원인을 API/consumer 지표만으로 분리 진단하기 어렵다.
-- 개선안 설계: pool 이벤트(`checkout/checkin/connect`) 기반 gauge를 추가하고, replication lag는 운영 DB 권한/구성 확인 후 `pg_stat_replication` 기반 수집 가능 여부를 결정한다.
-- 검증 계획: 로컬에서 pool gauge 변동 확인, 운영형 환경에서 replication lag 수집 가능성 PoC 후 채택 여부 확정.
+- 구현(풀 메트릭):
+  - `src/common/metrics.py` — Observable Gauge 4개(`db_pool_size`, `db_pool_checked_out`, `db_pool_overflow`, `db_pool_checked_in`) + Histogram 1개(`db_pool_checkout_latency_seconds`) 추가. `register_pool_engine()` 함수로 엔진 등록.
+  - `src/db/session.py` — `get_engine()`에서 `register_pool_engine()` 호출 + `session_scope()`에 checkout latency 계측 추가.
+  - `src/db/observability.py` — replication lag TODO 주석 추가.
+  - `tests/unit/test_db_pool_metrics.py` — 콜백 함수 + checkout latency 단위 테스트 (10건).
+  - `docker/observability/alert_rules.yml` — DbPoolExhausted, DbPoolCheckoutSlow rule 추가.
+- 검증: L0(py_compile) 통과, L1(단위 테스트) 통과.
+- 보류(리플리케이션 랙): Azure DB for PG 읽기 복제본 구성 + `azure_pg_admin` 역할 확인 후 `pg_stat_replication` 기반 수집 PoC 진행. `alert_rules.yml`에 주석 처리된 placeholder 추가.
 - 재검토 트리거: Cloud-Secure 운영 환경 모니터링 표준이 확정되는 시점.
 
 ## DEC-207~217 의존성 작업 묶음
@@ -370,19 +390,25 @@
   - DEC-211: `src/db/admin_tx.py` peer 쿼리에 `entry_type` 필터 + `ORDER BY` 추가 + 단위 테스트 1건
   - DEC-216: `src/consumer/processor.py` 가드 조건을 `related_type in {None, PAYMENT_ORDER}`로 변경 + 단위 테스트 3건
 
-### 묶음 C - API/감사 인터페이스
+### 묶음 C - API/감사 인터페이스 ✓ 완료
 
 - 포함 DEC: `DEC-207`, `DEC-208`
 - 선행 의존성: 묶음 A, 묶음 B
 - 선행 이유: endpoint 확장/감사 필드(`result_count`)는 역할 정책과 데이터 정합성 규칙이 고정된 뒤 설계해야 재작업이 줄어든다.
-- 주요 산출: 신규 라우트 설계, 감사로그 스키마 확장 설계
+- 산출:
+  - DEC-208: `bo.admin_audit_logs`에 `result_count` nullable int 컬럼 추가 (migration `20260212_0005`) + `build_audit_fields()` 파라미터 확장 + 기존/신규 라우트에서 건수 기록
+  - DEC-207: `GET /admin/payment-orders/{order_id}` + `GET /admin/wallets/{wallet_id}/tx?from=&to=&limit=` 구현. 스키마 4개(`LedgerEntryItem`, `PaymentOrderDetail`, `AdminOrderResponse`, `AdminWalletTxResponse`), DB 쿼리 2개, 서비스 함수 3개, 라우트 2개, 단위 테스트 6건 + 서비스 테스트 5건 + 통합 테스트 8건 추가
 
-### 묶음 D - 관측/알림 운영화
+### 묶음 D - 관측/알림 운영화 ✓ 완료
 
 - 포함 DEC: `DEC-212`, `DEC-217`
 - 선행 의존성: 묶음 B, 묶음 C
 - 선행 이유: 메트릭/알림 설계는 최종 API/DB 동작과 role/pairing 정책을 반영해야 이름/임계치 드리프트를 줄일 수 있다.
-- 주요 산출: alert rule 파일 복원 설계, DB pool/replication lag 계측 설계
+- 산출:
+  - DEC-212: `docker/observability/alert_rules.yml` 신규 생성 — 6 baseline alert rule(KQL 스니펫 포함) + `tests/unit/test_alert_rules.py` 메트릭명 드리프트 방지 테스트
+  - DEC-217(풀): `src/common/metrics.py`에 Observable Gauge 4개 + Histogram 1개 + `register_pool_engine()`, `src/db/session.py` checkout latency 계측, `tests/unit/test_db_pool_metrics.py` 단위 테스트
+  - DEC-217(리플리케이션 랙): 보류 — `alert_rules.yml` placeholder + `src/db/observability.py` TODO
+  - DEC-216 skip metric: `pairing_skipped_non_payment_order_total` Counter 구현 (`src/consumer/metrics.py`, `src/consumer/processor.py`)
 
 ### 묶음 E - 검증 체계 마감
 

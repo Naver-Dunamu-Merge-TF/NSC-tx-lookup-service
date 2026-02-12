@@ -42,6 +42,12 @@ def upsert_ledger_entry(
     pairing_snapshot = None
     if event.related_id and event.related_type in (None, "PAYMENT_ORDER"):
         pairing_snapshot = update_pairing_for_related_id(session, event.related_id)
+    elif event.related_id and event.related_type not in (None, "PAYMENT_ORDER"):
+        from src.consumer.metrics import PAIRING_SKIPPED_TOTAL
+
+        PAIRING_SKIPPED_TOTAL.add(
+            1, attributes={"related_type": event.related_type or ""},
+        )
 
     return missing_version, pairing_snapshot
 

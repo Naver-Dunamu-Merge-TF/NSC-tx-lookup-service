@@ -38,6 +38,7 @@ def build_audit_fields(
     status_code: int,
     request: Request,
     duration_ms: int | None,
+    result_count: int | None = None,
 ) -> dict[str, Any]:
     client = request.client
     config = load_config()
@@ -61,4 +62,5 @@ def build_audit_fields(
         "request_query": query if query else None,
         "requested_at": datetime.now(timezone.utc),
         "duration_ms": duration_ms,
+        "result_count": result_count,
     }

@@ -116,6 +116,7 @@ class AdminAuditLog(Base):
         sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
     )
     duration_ms: Mapped[int | None] = mapped_column(sa.Integer)
+    result_count: Mapped[int | None] = mapped_column(sa.Integer)
 
 
 class ConsumerDlqEvent(Base):

@@ -106,3 +106,78 @@ class AdminTxResponse(BaseModel):
             ]
         }
     )
+
+
+class LedgerEntryItem(BaseModel):
+    """리스트 엔드포인트용 원장 엔트리 요약."""
+
+    tx_id: str = Field(description="원장 엔트리 ID", examples=["tx-001"])
+    event_time: datetime = Field(
+        description="거래 발생 시각 (UTC)",
+        examples=["2026-02-04T03:12:45Z"],
+    )
+    entry_type: str = Field(
+        description="엔트리 유형 (PAYMENT 또는 RECEIVE)",
+        examples=["PAYMENT"],
+    )
+    amount: Decimal = Field(description="거래 금액 (양수)", examples=[10000.00])
+    amount_signed: Decimal | None = Field(
+        description="부호 포함 금액",
+        examples=[-10000.00],
+    )
+    wallet_id: str = Field(description="지갑 ID", examples=["wallet-A"])
+    status: str | None = Field(description="결제 주문 상태", examples=["SETTLED"])
+    status_group: str = Field(
+        description="상태 그룹 (SUCCESS/FAIL/IN_PROGRESS/UNKNOWN)",
+        examples=["SUCCESS"],
+    )
+    paired_tx_id: str | None = Field(
+        description="페어링된 반대편 tx_id",
+        examples=["tx-002"],
+    )
+    pairing_status: PairingStatus = Field(description="페어링 상태")
+    data_lag_sec: int | None = Field(
+        description="데이터 지연 시간 (초)",
+        examples=[3],
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PaymentOrderDetail(BaseModel):
+    """결제 주문 상세 정보."""
+
+    order_id: str = Field(description="결제 주문 ID", examples=["po-001"])
+    user_id: str | None = Field(description="사용자 ID", examples=["user-1"])
+    merchant_name: str | None = Field(description="가맹점명", examples=["MERCHANT_1"])
+    amount: Decimal = Field(description="주문 금액", examples=[10000.00])
+    status: str = Field(description="주문 상태", examples=["SETTLED"])
+    status_group: str = Field(
+        description="상태 그룹 (SUCCESS/FAIL/IN_PROGRESS/UNKNOWN)",
+        examples=["SUCCESS"],
+    )
+    created_at: datetime = Field(description="주문 생성 시각")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AdminOrderResponse(BaseModel):
+    """결제 주문 기준 조회 응답. 주문 상세와 관련 원장 엔트리 목록을 포함."""
+
+    order: PaymentOrderDetail = Field(description="결제 주문 상세")
+    ledger_entries: list[LedgerEntryItem] = Field(
+        description="주문에 연관된 원장 엔트리 목록",
+    )
+    pairing_status: PairingStatus = Field(description="전체 페어링 상태")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AdminWalletTxResponse(BaseModel):
+    """지갑 기준 거래 목록 응답."""
+
+    wallet_id: str = Field(description="조회된 지갑 ID", examples=["wallet-A"])
+    entries: list[LedgerEntryItem] = Field(description="거래 목록")
+    count: int = Field(description="반환된 거래 건수", examples=[20])
+
+    model_config = ConfigDict(populate_by_name=True)

@@ -7,8 +7,13 @@ from decimal import Decimal
 import pytest
 
 from src.api.schemas import PairingStatus
-from src.api.service import _resolve_status_group, build_admin_tx_response
-from src.db.admin_tx import AdminTxContext
+from src.api.service import (
+    _resolve_status_group,
+    build_admin_order_response,
+    build_admin_tx_response,
+    build_admin_wallet_tx_response,
+)
+from src.db.admin_tx import AdminOrderContext, AdminTxContext
 
 
 @dataclass
@@ -352,3 +357,195 @@ def test_build_admin_tx_response_peer_entry_fallback() -> None:
     assert response.paired_tx_id == "tx-rec"
     assert response.sender_wallet_id == "wallet-pay"
     assert response.receiver_wallet_id == "wallet-rec"
+
+
+# --- DEC-207: build_admin_order_response tests ---
+
+
+def test_build_admin_order_response_complete_pair() -> None:
+    order = PaymentOrderStub(
+        order_id="po-1",
+        user_id="user-1",
+        merchant_name="Shop",
+        amount=Decimal("10.00"),
+        status="SETTLED",
+        created_at=_dt("2026-02-05T00:59:00Z"),
+        updated_at=_dt("2026-02-05T01:00:00Z"),
+        source_version=1,
+        ingested_at=_dt("2026-02-05T01:00:02Z"),
+    )
+    entry_pay = LedgerEntryStub(
+        tx_id="tx-pay",
+        wallet_id="wallet-pay",
+        entry_type="PAYMENT",
+        amount=Decimal("10.00"),
+        amount_signed=Decimal("-10.00"),
+        related_id="po-1",
+        related_type="PAYMENT_ORDER",
+        event_time=_dt("2026-02-05T01:00:00Z"),
+        created_at=_dt("2026-02-05T01:00:00Z"),
+        updated_at=_dt("2026-02-05T01:00:01Z"),
+        source_version=1,
+        ingested_at=_dt("2026-02-05T01:00:02Z"),
+    )
+    entry_rec = LedgerEntryStub(
+        tx_id="tx-rec",
+        wallet_id="wallet-rec",
+        entry_type="RECEIVE",
+        amount=Decimal("10.00"),
+        amount_signed=Decimal("10.00"),
+        related_id="po-1",
+        related_type="PAYMENT_ORDER",
+        event_time=_dt("2026-02-05T01:00:00Z"),
+        created_at=_dt("2026-02-05T01:00:00Z"),
+        updated_at=_dt("2026-02-05T01:00:01Z"),
+        source_version=1,
+        ingested_at=_dt("2026-02-05T01:00:02Z"),
+    )
+    pair = PaymentLedgerPairStub(
+        payment_order_id="po-1",
+        payment_tx_id="tx-pay",
+        receive_tx_id="tx-rec",
+        payer_wallet_id="wallet-pay",
+        payee_wallet_id="wallet-rec",
+        amount=Decimal("10.00"),
+        status="SETTLED",
+        event_time=_dt("2026-02-05T01:00:00Z"),
+        updated_at=_dt("2026-02-05T01:00:02Z"),
+        ingested_at=_dt("2026-02-05T01:00:02Z"),
+    )
+
+    context = AdminOrderContext(
+        payment_order=order,
+        ledger_entries=[entry_pay, entry_rec],
+        payment_pair=pair,
+    )
+
+    response = build_admin_order_response(context)
+
+    assert response.order.order_id == "po-1"
+    assert response.order.status_group == "SUCCESS"
+    assert response.pairing_status == PairingStatus.COMPLETE
+    assert len(response.ledger_entries) == 2
+    assert response.ledger_entries[0].tx_id == "tx-pay"
+    assert response.ledger_entries[0].paired_tx_id == "tx-rec"
+    assert response.ledger_entries[1].tx_id == "tx-rec"
+    assert response.ledger_entries[1].paired_tx_id == "tx-pay"
+
+
+def test_build_admin_order_response_incomplete() -> None:
+    order = PaymentOrderStub(
+        order_id="po-2",
+        user_id="user-2",
+        merchant_name="Market",
+        amount=Decimal("50.00"),
+        status="PENDING",
+        created_at=_dt("2026-02-05T02:00:00Z"),
+        updated_at=None,
+        source_version=None,
+        ingested_at=_dt("2026-02-05T02:00:01Z"),
+    )
+    entry = LedgerEntryStub(
+        tx_id="tx-pay-only",
+        wallet_id="wallet-pay",
+        entry_type="PAYMENT",
+        amount=Decimal("50.00"),
+        amount_signed=Decimal("-50.00"),
+        related_id="po-2",
+        related_type="PAYMENT_ORDER",
+        event_time=_dt("2026-02-05T02:00:00Z"),
+        created_at=_dt("2026-02-05T02:00:00Z"),
+        updated_at=None,
+        source_version=None,
+        ingested_at=_dt("2026-02-05T02:00:01Z"),
+    )
+
+    context = AdminOrderContext(
+        payment_order=order,
+        ledger_entries=[entry],
+        payment_pair=None,
+    )
+
+    response = build_admin_order_response(context)
+
+    assert response.pairing_status == PairingStatus.INCOMPLETE
+    assert response.order.status_group == "IN_PROGRESS"
+    assert len(response.ledger_entries) == 1
+    assert response.ledger_entries[0].pairing_status == PairingStatus.INCOMPLETE
+
+
+def test_build_admin_order_response_no_entries() -> None:
+    order = PaymentOrderStub(
+        order_id="po-3",
+        user_id="user-3",
+        merchant_name=None,
+        amount=Decimal("1.00"),
+        status="CREATED",
+        created_at=_dt("2026-02-05T03:00:00Z"),
+        updated_at=None,
+        source_version=None,
+        ingested_at=_dt("2026-02-05T03:00:01Z"),
+    )
+
+    context = AdminOrderContext(
+        payment_order=order,
+        ledger_entries=[],
+        payment_pair=None,
+    )
+
+    response = build_admin_order_response(context)
+
+    assert response.pairing_status == PairingStatus.UNKNOWN
+    assert len(response.ledger_entries) == 0
+
+
+# --- DEC-207: build_admin_wallet_tx_response tests ---
+
+
+def test_build_admin_wallet_tx_response() -> None:
+    entry1 = LedgerEntryStub(
+        tx_id="tx-w1",
+        wallet_id="wallet-A",
+        entry_type="PAYMENT",
+        amount=Decimal("10.00"),
+        amount_signed=Decimal("-10.00"),
+        related_id="po-1",
+        related_type="PAYMENT_ORDER",
+        event_time=_dt("2026-02-05T01:00:00Z"),
+        created_at=_dt("2026-02-05T01:00:00Z"),
+        updated_at=None,
+        source_version=None,
+        ingested_at=_dt("2026-02-05T01:00:01Z"),
+    )
+    entry2 = LedgerEntryStub(
+        tx_id="tx-w2",
+        wallet_id="wallet-A",
+        entry_type="RECEIVE",
+        amount=Decimal("20.00"),
+        amount_signed=Decimal("20.00"),
+        related_id=None,
+        related_type=None,
+        event_time=_dt("2026-02-05T02:00:00Z"),
+        created_at=_dt("2026-02-05T02:00:00Z"),
+        updated_at=None,
+        source_version=None,
+        ingested_at=_dt("2026-02-05T02:00:01Z"),
+    )
+
+    response = build_admin_wallet_tx_response("wallet-A", [entry1, entry2])
+
+    assert response.wallet_id == "wallet-A"
+    assert response.count == 2
+    assert response.entries[0].tx_id == "tx-w1"
+    assert response.entries[0].wallet_id == "wallet-A"
+    assert response.entries[0].pairing_status == PairingStatus.INCOMPLETE
+    assert response.entries[1].tx_id == "tx-w2"
+    assert response.entries[1].pairing_status == PairingStatus.UNKNOWN
+
+
+def test_build_admin_wallet_tx_response_empty() -> None:
+    response = build_admin_wallet_tx_response("wallet-empty", [])
+
+    assert response.wallet_id == "wallet-empty"
+    assert response.count == 0
+    assert response.entries == []

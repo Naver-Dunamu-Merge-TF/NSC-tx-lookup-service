@@ -46,6 +46,11 @@ PAIR_INCOMPLETE_AGE_SECONDS = _meter.create_histogram(
     unit="s",
 )
 
+PAIRING_SKIPPED_TOTAL = _meter.create_counter(
+    name="pairing_skipped_non_payment_order_total",
+    description="Events skipped for pairing due to non-PAYMENT_ORDER related_type",
+)
+
 # --- Observable gauges (replaces Prometheus Gauge.set()) ---
 
 _kafka_lag_values: dict[str, int] = {}
