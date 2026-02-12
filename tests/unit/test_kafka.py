@@ -36,8 +36,7 @@ def _make_config(**overrides) -> AppConfig:
         "db_max_overflow": 10,
         "db_pool_timeout": 30,
         "db_pool_recycle": 1800,
-        "metrics_host": "0.0.0.0",
-        "metrics_port": 9108,
+        "appinsights_connection_string": "",
         "db_slow_query_ms": 200,
     }
     defaults.update(overrides)

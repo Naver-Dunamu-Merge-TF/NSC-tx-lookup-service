@@ -10,11 +10,13 @@ from src.api.observability import register_observability
 from src.api.schemas import AdminTxResponse
 from src.api.service import build_admin_tx_response
 from src.common.logging import configure_logging
+from src.common.otel import init_azure_monitor
 from src.db.admin_tx import fetch_admin_tx_context
 from src.db.audit import record_admin_audit
 from src.db.session import session_scope
 
 configure_logging()
+init_azure_monitor()
 app = FastAPI(
     title="Backoffice Admin API",
     description=(

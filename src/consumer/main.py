@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
-from prometheus_client import start_http_server
 
 from src.common.config import load_config
 from src.common.kafka import build_kafka_client_config
@@ -39,7 +38,6 @@ from src.consumer.processor import upsert_ledger_entry, upsert_payment_order
 from src.db.session import session_scope
 
 logger = logging.getLogger(__name__)
-_METRICS_STARTED = False
 
 
 def _maybe_prune_dlq() -> None:
@@ -109,18 +107,10 @@ def _build_consumer() -> Consumer:
     return Consumer(kafka_config)
 
 
-def _start_metrics_server() -> None:
-    global _METRICS_STARTED
-    if _METRICS_STARTED:
-        return
-    config = load_config()
-    start_http_server(config.metrics_port, addr=config.metrics_host)
-    logger.info(
-        "Metrics server listening on %s:%s",
-        config.metrics_host,
-        config.metrics_port,
-    )
-    _METRICS_STARTED = True
+def _init_observability() -> None:
+    from src.common.otel import init_azure_monitor
+
+    init_azure_monitor()
 
 
 def _handle_payload(
@@ -165,7 +155,7 @@ def run_consumer(
     max_idle_seconds: int | None = None,
 ) -> None:
     config = load_config()
-    _start_metrics_server()
+    _init_observability()
     _maybe_prune_dlq()
     consumer = _build_consumer()
     topics = [config.ledger_topic, config.payment_order_topic]
@@ -257,7 +247,7 @@ def run_backfill(
     since: datetime | None,
     until: datetime | None,
 ) -> None:
-    _start_metrics_server()
+    _init_observability()
     config = load_config()
     _maybe_prune_dlq()
     counter = VersionMissingCounter()

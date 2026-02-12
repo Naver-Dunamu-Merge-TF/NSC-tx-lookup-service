@@ -42,8 +42,7 @@ class AppConfig:
     db_max_overflow: int
     db_pool_timeout: int
     db_pool_recycle: int
-    metrics_host: str
-    metrics_port: int
+    appinsights_connection_string: str
     db_slow_query_ms: int
 
 
@@ -141,7 +140,8 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
         db_max_overflow=_get_int(source, "DB_MAX_OVERFLOW", 10),
         db_pool_timeout=_get_int(source, "DB_POOL_TIMEOUT", 30),
         db_pool_recycle=_get_int(source, "DB_POOL_RECYCLE", 1800),
-        metrics_host=_get_env(source, "METRICS_HOST", "0.0.0.0"),
-        metrics_port=_get_int(source, "METRICS_PORT", 9108),
+        appinsights_connection_string=_get_env(
+            source, "APPLICATIONINSIGHTS_CONNECTION_STRING", ""
+        ),
         db_slow_query_ms=_get_int(source, "DB_SLOW_QUERY_MS", 200),
     )

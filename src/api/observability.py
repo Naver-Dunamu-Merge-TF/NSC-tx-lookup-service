@@ -3,13 +3,10 @@ from __future__ import annotations
 import time
 
 from fastapi import FastAPI, Request
-from starlette.responses import Response
 
 from src.common.metrics import (
     API_REQUESTS_INFLIGHT,
-    CONTENT_TYPE_LATEST,
     observe_api_request,
-    render_metrics,
 )
 from src.common.observability import (
     CORRELATION_ID_HEADER,
@@ -38,7 +35,7 @@ def register_observability(app: FastAPI) -> None:
     async def metrics_middleware(request: Request, call_next):
         method = request.method
         route = _resolve_route_template(request)
-        API_REQUESTS_INFLIGHT.labels(method=method, route=route).inc()
+        API_REQUESTS_INFLIGHT.add(1, attributes={"method": method, "route": route})
         start = time.perf_counter()
         status_code = 500
         try:
@@ -48,8 +45,6 @@ def register_observability(app: FastAPI) -> None:
         finally:
             duration = time.perf_counter() - start
             observe_api_request(method, route, status_code, duration)
-            API_REQUESTS_INFLIGHT.labels(method=method, route=route).dec()
-
-    @app.get("/metrics")
-    def metrics_endpoint() -> Response:
-        return Response(content=render_metrics(), media_type=CONTENT_TYPE_LATEST)
+            API_REQUESTS_INFLIGHT.add(
+                -1, attributes={"method": method, "route": route}
+            )

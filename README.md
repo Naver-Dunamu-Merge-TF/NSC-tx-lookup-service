@@ -87,13 +87,10 @@ sequenceDiagram
 
 ---
 
-## 관측성 (로컬)
+## 관측성
 
-- API 메트릭: `http://localhost:8000/metrics`
-- Consumer 메트릭: `http://localhost:9108/metrics`
-- Prometheus + Grafana (선택사항):
-  - `docker compose -f docker-compose.observability.yml up -d`
-  - Grafana: `http://localhost:3000` (기본 계정 `admin` / `admin`)
-  - 알림 규칙: `docker/observability/alert_rules.yml` (API p95 200ms, 데이터 신선도 5s, 에러율 2%, DLQ 활동)
+메트릭은 **Azure Monitor (Application Insights)** 로 수집됩니다.
 
-참고: `docker-compose.observability.yml`은 `network_mode: host`를 사용하므로 Prometheus/Grafana가 호스트의 메트릭 엔드포인트를 수집할 수 있습니다.
+- 환경 변수 `APPLICATIONINSIGHTS_CONNECTION_STRING`을 설정하면 OpenTelemetry를 통해 메트릭이 자동 전송됩니다.
+- 값이 비어 있으면 OTel이 비활성화되어 로컬 개발에 영향이 없습니다.
+- Azure Portal에서 Application Insights > Metrics / Logs (KQL) 로 대시보드 및 알림을 구성할 수 있습니다.
