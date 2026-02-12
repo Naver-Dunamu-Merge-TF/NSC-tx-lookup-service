@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.api.auth import (
     _normalize_roles,
     _split_csv,
+    auth_required_roles,
     extract_actor_id,
     extract_roles,
     mask_query,
@@ -90,3 +91,13 @@ def test_normalize_roles_none_returns_empty() -> None:
 
 def test_normalize_roles_non_iterable_returns_empty() -> None:
     assert _normalize_roles(12345) == []
+
+
+def test_auth_required_roles_includes_admin_audit() -> None:
+    assert "ADMIN_READ" in auth_required_roles
+    assert "ADMIN_AUDIT" in auth_required_roles
+
+
+def test_auth_required_roles_rejects_unknown_role() -> None:
+    unknown_roles = {"VIEWER", "SUPPORT_AGENT"}
+    assert not unknown_roles.intersection(auth_required_roles)

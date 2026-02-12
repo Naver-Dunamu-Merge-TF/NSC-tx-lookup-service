@@ -42,9 +42,17 @@ def fetch_admin_tx_context(session: "Session", tx_id: str) -> AdminTxContext | N
             payment_pair.payment_tx_id and payment_pair.receive_tx_id
         )
         if needs_peer:
-            peer_stmt = select(LedgerEntry).where(
-                LedgerEntry.related_id == ledger_entry.related_id,
-                LedgerEntry.tx_id != ledger_entry.tx_id,
+            opposite_type = (
+                "RECEIVE" if ledger_entry.entry_type == "PAYMENT" else "PAYMENT"
+            )
+            peer_stmt = (
+                select(LedgerEntry)
+                .where(
+                    LedgerEntry.related_id == ledger_entry.related_id,
+                    LedgerEntry.tx_id != ledger_entry.tx_id,
+                    LedgerEntry.entry_type == opposite_type,
+                )
+                .order_by(LedgerEntry.event_time.desc(), LedgerEntry.tx_id)
             )
             peer_entry = session.execute(peer_stmt).scalars().first()
 

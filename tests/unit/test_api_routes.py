@@ -111,3 +111,67 @@ def test_get_admin_tx_auth_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Authorization header missing"
+
+
+def test_get_admin_tx_with_audit_role_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADMIN_AUDIT 단독 역할로도 조회 가능 (DEC-215 옵션 C)."""
+
+    def _allow_audit(request: Request):
+        request.state.actor_id = "auditor-1"
+        request.state.actor_roles = ["ADMIN_AUDIT"]
+        return None
+
+    api_main.app.dependency_overrides[api_main.require_admin_read] = _allow_audit
+    monkeypatch.setattr(api_main, "session_scope", _fake_session_scope)
+
+    expected = {
+        "tx_id": "tx-999",
+        "event_time": datetime(2026, 2, 5, 1, 0, 0, tzinfo=timezone.utc).isoformat(),
+        "entry_type": "PAYMENT",
+        "amount": str(Decimal("5.00")),
+        "amount_signed": None,
+        "status": "SETTLED",
+        "status_group": "SETTLED",
+        "sender_wallet_id": "wallet-a",
+        "receiver_wallet_id": None,
+        "related": None,
+        "paired_tx_id": None,
+        "merchant_name": None,
+        "pairing_status": "UNKNOWN",
+        "data_lag_sec": 0,
+    }
+    sentinel = object()
+    monkeypatch.setattr(api_main, "fetch_admin_tx_context", lambda s, t: sentinel)
+    monkeypatch.setattr(api_main, "build_admin_tx_response", lambda c: expected)
+    monkeypatch.setattr(api_main, "record_admin_audit", lambda s, f: None)
+
+    with TestClient(api_main.app) as client:
+        response = client.get("/admin/tx/tx-999")
+
+    api_main.app.dependency_overrides = {}
+    assert response.status_code == 200
+    assert response.json()["tx_id"] == "tx-999"
+
+
+def test_get_admin_tx_forbidden_no_matching_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADMIN_READ/ADMIN_AUDIT 둘 다 없으면 403 (DEC-215)."""
+    api_main.app.dependency_overrides = {}
+    monkeypatch.setenv("AUTH_MODE", "oidc")
+
+    monkeypatch.setattr(
+        "src.api.auth._decode_token",
+        lambda token: {"roles": ["VIEWER"], "sub": "user-no-access"},
+    )
+
+    with TestClient(api_main.app) as client:
+        response = client.get(
+            "/admin/tx/tx-123",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Forbidden"

@@ -82,6 +82,52 @@ def test_upsert_ledger_entry_no_related_id(mock_upsert, mock_pairing):
     mock_pairing.assert_not_called()
 
 
+@patch("src.consumer.processor.update_pairing_for_related_id")
+@patch("src.db.upsert.latest_wins_upsert")
+def test_upsert_ledger_entry_skips_pairing_for_non_payment_order(
+    mock_upsert, mock_pairing
+):
+    """DEC-216: related_type not in {None, PAYMENT_ORDER} must skip pairing."""
+    session = MagicMock()
+    mock_upsert.return_value = "stmt"
+
+    event = _make_ledger_event(related_type="WITHDRAWAL", related_id="w-001")
+    _, snapshot = upsert_ledger_entry(session, event)
+
+    assert snapshot is None
+    mock_pairing.assert_not_called()
+
+
+@patch("src.consumer.processor.update_pairing_for_related_id")
+@patch("src.db.upsert.latest_wins_upsert")
+def test_upsert_ledger_entry_pairs_when_related_type_none(mock_upsert, mock_pairing):
+    """DEC-216: related_type=None with related_id should still trigger pairing."""
+    session = MagicMock()
+    mock_upsert.return_value = "stmt"
+    mock_pairing.return_value = None
+
+    event = _make_ledger_event(related_type=None, related_id="po-1")
+    upsert_ledger_entry(session, event)
+
+    mock_pairing.assert_called_once_with(session, "po-1")
+
+
+@patch("src.consumer.processor.update_pairing_for_related_id")
+@patch("src.db.upsert.latest_wins_upsert")
+def test_upsert_ledger_entry_pairs_when_related_type_payment_order(
+    mock_upsert, mock_pairing
+):
+    """DEC-216: related_type=PAYMENT_ORDER should trigger pairing."""
+    session = MagicMock()
+    mock_upsert.return_value = "stmt"
+    mock_pairing.return_value = None
+
+    event = _make_ledger_event(related_type="PAYMENT_ORDER", related_id="po-1")
+    upsert_ledger_entry(session, event)
+
+    mock_pairing.assert_called_once_with(session, "po-1")
+
+
 @patch("src.db.upsert.latest_wins_upsert")
 def test_upsert_payment_order(mock_upsert):
     session = MagicMock()

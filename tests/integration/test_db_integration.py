@@ -88,6 +88,95 @@ def test_latest_wins_upsert_uses_version_when_updated_missing(
     assert row.status == "V2"
 
 
+def test_latest_wins_upsert_versioned_not_overwritten_by_unversioned(
+    db_session, cleanup_test_rows
+):
+    """DEC-210: existing record with metadata must not be overwritten by
+    a metadata-free event that merely has a newer ingested_at."""
+    order_id = f"{cleanup_test_rows}-order-mixed"
+    versioned = {
+        "order_id": order_id,
+        "user_id": "user-1",
+        "merchant_name": "Merchant",
+        "amount": Decimal("10.00"),
+        "status": "SETTLED",
+        "created_at": _dt(-10),
+        "updated_at": _dt(-5),
+        "source_version": 5,
+        "ingested_at": _dt(-5),
+    }
+    unversioned = {
+        "order_id": order_id,
+        "user_id": "user-1",
+        "merchant_name": "Merchant",
+        "amount": Decimal("10.00"),
+        "status": "PROCESSING",
+        "created_at": _dt(-10),
+        "updated_at": None,
+        "source_version": None,
+        "ingested_at": _dt(-1),
+    }
+
+    db_session.execute(
+        latest_wins_upsert(PaymentOrder.__table__, versioned, ["order_id"])
+    )
+    db_session.execute(
+        latest_wins_upsert(PaymentOrder.__table__, unversioned, ["order_id"])
+    )
+    db_session.commit()
+
+    row = db_session.get(PaymentOrder, order_id)
+    assert row is not None
+    assert row.status == "SETTLED", (
+        "versioned record must not be overwritten by unversioned event"
+    )
+    assert row.source_version == 5
+
+
+def test_latest_wins_upsert_both_unversioned_uses_ingested_at(
+    db_session, cleanup_test_rows
+):
+    """DEC-210 complement: when both sides lack metadata, ingested_at LWW
+    should still apply."""
+    order_id = f"{cleanup_test_rows}-order-unver"
+    first = {
+        "order_id": order_id,
+        "user_id": "user-1",
+        "merchant_name": "Merchant",
+        "amount": Decimal("10.00"),
+        "status": "FIRST",
+        "created_at": _dt(-10),
+        "updated_at": None,
+        "source_version": None,
+        "ingested_at": _dt(-5),
+    }
+    second = {
+        "order_id": order_id,
+        "user_id": "user-1",
+        "merchant_name": "Merchant",
+        "amount": Decimal("10.00"),
+        "status": "SECOND",
+        "created_at": _dt(-10),
+        "updated_at": None,
+        "source_version": None,
+        "ingested_at": _dt(-1),
+    }
+
+    db_session.execute(
+        latest_wins_upsert(PaymentOrder.__table__, first, ["order_id"])
+    )
+    db_session.execute(
+        latest_wins_upsert(PaymentOrder.__table__, second, ["order_id"])
+    )
+    db_session.commit()
+
+    row = db_session.get(PaymentOrder, order_id)
+    assert row is not None
+    assert row.status == "SECOND", (
+        "both-unversioned case should still use ingested_at LWW"
+    )
+
+
 def test_update_pairing_for_related_id(db_session, cleanup_test_rows):
     related_id = f"{cleanup_test_rows}-po"
 

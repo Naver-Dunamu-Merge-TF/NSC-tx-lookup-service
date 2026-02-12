@@ -8,7 +8,7 @@ from urllib.parse import parse_qsl, urlencode
 import jwt
 from jwt import PyJWKClient
 
-from src.api.constants import ADMIN_READ_ROLE
+from src.api.constants import ADMIN_AUDIT_ROLE, ADMIN_READ_ROLE
 from src.common.config import load_config
 
 try:
@@ -19,6 +19,7 @@ except Exception:  # pragma: no cover - fallback for unit tests without deps
 
 auth_required_roles = {
     ADMIN_READ_ROLE,
+    ADMIN_AUDIT_ROLE,
 }
 
 

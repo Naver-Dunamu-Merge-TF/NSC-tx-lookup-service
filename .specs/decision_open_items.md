@@ -1,7 +1,7 @@
 # 결정 필요 항목 목록 (Open Decisions)
 
 작성일: 2026-02-06
-업데이트: 2026-02-09
+업데이트: 2026-02-12
 
 ## 목적
 
@@ -233,3 +233,188 @@
 - 결정: 카프카 프로듀서 코드(이벤트 발행)는 업스트림 서비스(CryptoSvc, AccountSvc, CommerceSvc)가 소유한다. tx-lookup-service는 컨슈머 전용이다. 카프카/모니터링 인프라 프로비저닝은 인프라팀이 수행한다.
 - 영향: Phase 8 프로비저닝 스크립트(`scripts/cloud/phase8/`) 제거. 이벤트 계약(스키마)은 `configs/topic_checklist.md`에서 정의하고 업스트림 팀에 전달한다.
 - 근거: 팀 간 업무 범위 조정, `.specs/backoffice_project_specs.md` 10.3항, `.specs/entire_architecture.md`
+
+### DEC-207 갭 1 - API 엔드포인트/응답 계약 점검
+
+- 상태: **결정됨(갭 확인, 2026-02-12)**
+- 확인 결과: 필수 `GET /admin/tx/{tx_id}`의 404/INCOMPLETE/UNKNOWN 응답 정책은 구현과 일치하나, 권장 엔드포인트 2개는 미구현 상태다.
+- 갭 설명: `.specs/backoffice_project_specs.md` 1.1, `.specs/backoffice_db_admin_api.md` 5.2에 있는 권장 엔드포인트 `GET /admin/payment-orders/{order_id}`, `GET /admin/wallets/{wallet_id}/tx`가 `src/api/main.py`에 없다.
+- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md`, `.specs/backoffice_db_admin_api.md`, `src/api/main.py`, `src/api/service.py`, `.agents/logs/verification/dec207_214/01_api_routes_rg.log`, `.agents/logs/verification/dec207_214/08_docs_contract_rg.log`
+- 영향: 운영/CS 조회 동선이 `tx_id` 단건 조회에만 묶여, 주문/지갑 관점 조회 요구를 API 레벨에서 직접 처리할 수 없다.
+- 개선안 설계: `src/api/main.py`에 2개 라우트를 추가하고, `src/db/admin_tx.py`에 order/wallet 조회 쿼리를 분리한다. `src/api/schemas.py`에 리스트 응답 스키마를 추가하고 `tests/unit/test_api_routes.py`, `tests/integration/test_admin_tx_integration.py`에 200/404/limit/time-range 케이스를 보강한다.
+- 검증 계획: 신규 라우트 단위 테스트 + 통합 테스트(정상/빈 결과/limit/from-to) + 기존 `GET /admin/tx/{tx_id}` 회귀 테스트를 같은 파이프라인에서 실행한다.
+- 재검토 트리거: 서비스 범위를 F1(`tx_id` 단건 전용)로 공식 축소 결정하는 경우.
+
+### DEC-208 갭 2 - RBAC/감사로그 계약 점검
+
+- 상태: **결정됨(갭 확인, 2026-02-12)**
+- 확인 결과: 감사로그의 핵심 필드(`who/when/what/ip/user_agent`)는 기록되지만, spec에 명시된 `result_count` 필드는 저장되지 않는다.
+- 갭 설명: `bo.admin_audit_logs` 스키마와 `build_audit_fields()`에 `result_count`가 없다.
+- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md` 7, `src/api/audit.py`, `src/db/models.py`, `migrations/versions/20260205_0003_create_admin_audit_logs.py`, `.agents/logs/verification/dec207_214/02_rbac_audit_rg.log`, `.agents/logs/verification/dec207_214/11_result_count_admin_audit_rg.log`
+- 영향: 감사로그에서 “조회 결과 건수”를 기반으로 이상 조회 패턴을 집계하기 어렵다.
+- 개선안 설계: `bo.admin_audit_logs`에 `result_count` 컬럼(nullable int)를 추가하는 migration revision을 설계하고, `src/api/main.py`에서 `tx_id` 단건 조회는 `FOUND=1`, `NOT_FOUND=0`으로 기록한다. 향후 list endpoint 도입 시 실제 count를 공통 필드로 재사용한다.
+- 검증 계획: migration 적용/롤백 테스트 + 감사로그 적재 통합 테스트(`FOUND`, `NOT_FOUND` 각각 count 검증).
+- 재검토 트리거: 감사 정책에서 `result_count`를 메트릭 시스템으로 이관하고 DB 저장을 제외하기로 합의되는 경우.
+
+### DEC-209 갭 3 - Serving DB 스키마/인덱스 계약 점검
+
+- 상태: **결정됨(일치, 2026-02-12)**
+- 확인 결과: `bo.ledger_entries`, `bo.payment_orders`, `bo.payment_ledger_pairs`의 PK/주요 컬럼/핵심 인덱스는 SSOT와 실구현이 일치한다.
+- 갭 설명: 확인된 필수 스키마 갭 없음. `bo.admin_tx_search`는 문서상 옵션이므로 미구현을 갭으로 판정하지 않는다.
+- 근거(문서/코드 경로): `.specs/backoffice_db_admin_api.md` 4.1~4.4, `src/db/models.py`, `migrations/versions/20260205_0001_create_backoffice_schema.py`, `migrations/versions/20260205_0002_add_source_version_columns.py`, `.agents/logs/verification/dec207_214/03_models_rg.log`, `.agents/logs/verification/dec207_214/04_migrations_rg.log`
+- 영향: 스키마 관점에서 즉시 수정이 필요한 차이는 없다.
+- 개선안 설계: 현재 단계 변경 없음. `admin_tx_search`를 실제 운영 쿼리 패턴 기반으로 도입할지 별도 성능 검토에서 결정한다.
+- 검증 계획: 현행 integration test(`tests/integration/test_db_integration.py`) 유지 + 신규 migration 추가 시 schema diff 점검.
+- 재검토 트리거: API 조회 패턴이 증가해 join 비용이 SLA를 위반할 때(뷰/머터리얼라이즈드 뷰 검토).
+
+### DEC-210 갭 4 - 멱등/LWW/버전 처리 계약 점검
+
+- 상태: **해결됨(구현 완료, 2026-02-12)**
+- 확인 결과: `updated_at`/`source_version` 우선 처리 자체는 구현되어 있으나, metadata 없는 이벤트가 metadata 있는 기존 레코드를 덮어쓸 수 있는 fallback 경로가 존재한다.
+- 갭 설명: `src/db/upsert.py`의 fallback 조건은 `incoming_updated is NULL AND incoming_version is NULL AND incoming_ingested >= existing_ingested`만 확인하므로, 기존 레코드에 `updated_at/source_version`이 있어도 후행 무버전 이벤트가 업데이트를 수행한다.
+- 근거(문서/코드 경로): `.specs/backoffice_data_project.md` 5.2, 5.6, `src/db/upsert.py`, `src/consumer/processor.py`, `tests/integration/test_db_integration.py`, `.agents/logs/verification/dec207_214/05_lww_rg.log`
+- 영향: out-of-order + 부분 필드 이벤트가 섞인 환경에서 상태 역전(regression) 가능성이 남는다.
+- 개선안 설계: fallback 적용 전제에 `existing_updated IS NULL` 및 `existing_version IS NULL`을 추가해 "양쪽 모두 metadata 부재"일 때만 `ingested_at` LWW를 허용한다. 동시에 혼합 시나리오(기존=metadata 있음, 신규=metadata 없음) 통합 테스트를 추가한다.
+- 구현: `src/db/upsert.py` fallback 조건에 `existing_updated.is_(None)` + `existing_version.is_(None)` 추가. `tests/integration/test_db_integration.py`에 혼합 메타데이터 시나리오(`test_latest_wins_upsert_versioned_not_overwritten_by_unversioned`) 및 양쪽 unversioned 정상 동작(`test_latest_wins_upsert_both_unversioned_uses_ingested_at`) 통합 테스트 추가.
+- 검증: L0(py_compile) 통과, L1(단위 테스트) 통과. 통합 테스트는 Docker DB 필요(L1+).
+- 재검토 트리거: 업스트림이 전 이벤트에 `updated_at` 또는 `version`을 강제 제공하게 되는 경우.
+
+### DEC-211 갭 5 - 페어링 규칙/회귀 방지 계약 점검
+
+- 상태: **해결됨(구현 완료, 2026-02-12)**
+- 확인 결과: complete->incomplete 회귀 차단은 구현되어 있으나, API fallback peer 탐색이 "반대편 엔트리" 제약 없이 동작한다.
+- 갭 설명: `src/db/admin_tx.py`의 peer 조회는 `related_id`와 `tx_id != current` 조건만 사용해, 다건 엔트리(예: PAYMENT 2건 이상)에서 반대편이 아닌 행을 선택할 수 있다.
+- 근거(문서/코드 경로): `.specs/backoffice_db_admin_api.md` 5.2, `src/db/admin_tx.py`, `src/api/service.py`, `tests/unit/test_api_service.py`, `.agents/logs/verification/dec207_214/06_pairing_rg.log`
+- 영향: `sender_wallet_id`/`receiver_wallet_id` 및 `paired_tx_id`가 잘못 계산되어 관리자 조회 정확도가 떨어질 수 있다.
+- 개선안 설계: `fetch_admin_tx_context()` peer 조회에 "현재 entry_type의 반대 타입" 필터를 추가하고, 동일 타입 다건일 때를 대비해 정렬 기준(event_time DESC, tx_id)을 명시한다.
+- 구현: `src/db/admin_tx.py` peer 조회에 `LedgerEntry.entry_type == opposite_type` 필터 + `.order_by(event_time.desc(), tx_id)` 추가. `tests/unit/test_api_service.py`에 동일 타입 peer 시나리오(`test_build_admin_tx_response_same_type_peer_not_used`) 추가.
+- 검증: L0(py_compile) 통과, L1(단위 테스트 33건) 통과. 통합 테스트(다건 peer DB 검증)는 Docker DB 필요(L1+).
+- 재검토 트리거: refund/reversal 등으로 pairing 규칙이 PAYMENT/RECEIVE 1:1이 아닌 정책으로 바뀌는 경우.
+
+### DEC-212 갭 6 - 관측성/SLO/알림 계약 점검
+
+- 상태: **결정됨(갭 확인, 2026-02-12)**
+- 확인 결과: API/Consumer/DB 기본 메트릭은 존재하지만, 문서/DEC에서 기준으로 참조하는 alert rule 파일이 저장소에 없다.
+- 갭 설명: `docker/observability/alert_rules.yml` 경로가 구현체에 없어서 baseline 알림 정책을 코드/운영 설정으로 추적할 수 없다.
+- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md` 8, `src/api/observability.py`, `src/common/metrics.py`, `src/consumer/metrics.py`, `src/db/observability.py`, `.agents/logs/verification/dec207_214/07_observability_rg.log`, `.agents/logs/verification/dec207_214/10_alert_rules_presence.log`
+- 영향: SLO 위반 시 경보 기준이 문서상 선언만 있고 배포 산출물에서 검증되지 않는다.
+- 개선안 설계: `docker/observability/alert_rules.yml`를 복원/신규 작성해 DEC-010/DEC-202 임계치와 현재 OTel metric name을 1:1 매핑한다. 환경별 severity 차이는 values 파일 또는 변수로 분리한다.
+- 검증 계획: alert rule 정적 검증(promtool 등) + 메트릭명 호환성 점검 + 로컬 synthetic 알람 시뮬레이션.
+- 재검토 트리거: Alerting 플랫폼이 Prometheus rule이 아닌 Azure Monitor Alert Rule로 완전 전환되는 경우.
+
+### DEC-213 갭 7 - 테스트 커버리지 계약 점검
+
+- 상태: **결정됨(갭 확인, 2026-02-12)**
+- 확인 결과: happy path 중심 테스트는 충분하지만, error/idempotency의 핵심 회귀 시나리오 일부가 누락되어 있다.
+- 갭 설명: 403 인가 거부(역할 부족), 혼합 metadata LWW 역전 방지, 다건 fallback peer 선택 정확도 시나리오가 현재 테스트 세트에 없다.
+- 근거(문서/코드 경로): `AGENTS.md` Testing strategy, `tests/unit/test_api_routes.py`, `tests/integration/test_db_integration.py`, `tests/unit/test_processor.py`, `.agents/logs/verification/dec207_214/12_test_coverage_rg.log`
+- 영향: 권한/정합성 회귀가 발생해도 CI에서 조기 탐지되지 않을 수 있다.
+- 개선안 설계: `tests/unit/test_api_routes.py`에 403 케이스, `tests/integration/test_db_integration.py`에 혼합 metadata upsert 케이스, `tests/integration/test_admin_tx_integration.py`에 다건 peer fallback 케이스를 추가한다.
+- 검증 계획: 단위(`pytest tests/unit/...`) + 통합(`pytest tests/integration/...`) 분리 실행 후 실패 시나리오를 회귀셋으로 고정한다.
+- 재검토 트리거: 신규 endpoint 추가 또는 LWW/pairing 조건식 변경 시.
+
+### DEC-214 갭 8 - 문서 참조 무결성/드리프트 점검
+
+- 상태: **결정됨(일치, 2026-02-12)**
+- 확인 결과: `.specs/SRS - Software Requirements Specification.md` 파일이 정상적으로 존재하며, `.specs/backoffice_db_admin_api.md` 및 `.specs/backoffice_project_specs.md`의 참조 경로와 일치한다. 최초 갭 판정은 파일명 공백으로 인한 검증 스크립트 오류(False Positive)였다.
+- 근거(문서/코드 경로): `.specs/SRS - Software Requirements Specification.md`, `.specs/backoffice_db_admin_api.md`, `.specs/backoffice_project_specs.md`, `.agents/logs/verification/dec207_214/09_specs_ls.log`
+- 영향: 스키마 관점에서 즉시 수정이 필요한 차이는 없다.
+- 재검토 트리거: SRS 저장소를 별도 repo로 분리해 서브모듈/URL 참조 정책이 바뀌는 경우.
+
+### DEC-215 갭 2-추가 - `ADMIN_AUDIT` 역할 적용 범위
+
+- 상태: **결정됨(2026-02-12)**
+- 결정: 옵션 C 채택 — `ADMIN_READ|ADMIN_AUDIT` 다중 허용. `auth_required_roles`에 `ADMIN_AUDIT`를 추가해 두 역할 중 하나만 있어도 조회 endpoint 접근을 허용한다. 향후 감사 전용 endpoint 추가 시 액션별 세분화를 검토한다.
+- 근거: `src/api/auth.py`(`auth_required_roles` set), `src/api/constants.py`, `tests/unit/test_auth.py`(역할 매트릭스), `tests/unit/test_api_routes.py`(403/AUDIT 케이스)
+- 영향: `ADMIN_AUDIT` 단독 역할 사용자도 조회 가능. 스펙과 구현의 역할 정책이 일치.
+- 재검토 트리거: 감사 전용 API 또는 감사 데이터 export 기능이 추가되는 시점.
+
+### DEC-216 갭 5-추가 - Consumer 페어링 범위(`related_type`) 제약
+
+- 상태: **해결됨(구현 완료, 2026-02-12)**
+- 확인 결과: Consumer는 `related_id`만 있으면 pairing 업데이트를 수행해, `PAYMENT_ORDER` 외 도메인도 pair 테이블에 유입될 수 있다.
+- 갭 설명: `upsert_ledger_entry()`에서 `event.related_type` 검사 없이 `update_pairing_for_related_id()`를 호출한다.
+- 근거: `.specs/backoffice_project_specs.md` 3.5, `src/consumer/processor.py`, `src/consumer/pairing.py`, `.agents/logs/verification/dec207_214/05_lww_rg.log`
+- 영향: `bo.payment_ledger_pairs`의 도메인 순도가 낮아지고, 운영 지표(pair completion rate) 해석이 왜곡될 수 있다.
+- 개선안 설계: 호출 조건을 `related_type in {None, PAYMENT_ORDER}`로 제한하고, 명시적 비대상 타입은 skip metric(`pairing_skipped_non_payment_order_total`)으로 분리 관측한다.
+- 구현: `src/consumer/processor.py` 가드 조건을 `event.related_id and event.related_type in (None, "PAYMENT_ORDER")`로 변경. `tests/unit/test_processor.py`에 3개 시나리오 추가(`test_upsert_ledger_entry_skips_pairing_for_non_payment_order`, `test_upsert_ledger_entry_pairs_when_related_type_none`, `test_upsert_ledger_entry_pairs_when_related_type_payment_order`).
+- 검증: L0(py_compile) 통과, L1(단위 테스트 8건) 통과.
+- 참고: skip metric 추가는 묶음 D(관측성)에서 검토한다.
+- 재검토 트리거: 멀티 도메인 pairing(`related_type` 확장)을 공식 지원하기로 결정되는 경우.
+
+### DEC-217 갭 6-추가 - DB 관측 지표 커버리지(풀/리플리카)
+
+- 상태: **보류(협의 필요, 2026-02-12)**
+- 확인 결과: slow query와 query latency는 수집하지만, spec에 명시된 DB connection pool/replication lag 지표는 코드에 없다.
+- 갭 설명: `src/db/observability.py`, `src/common/metrics.py`에는 풀 상태/리플리카 지연 계측 항목이 없다.
+- 근거: `.specs/backoffice_project_specs.md` 8.1, `src/db/observability.py`, `src/common/metrics.py`, `.agents/logs/verification/dec207_214/07_observability_rg.log`
+- 영향: DB 병목 원인을 API/consumer 지표만으로 분리 진단하기 어렵다.
+- 개선안 설계: pool 이벤트(`checkout/checkin/connect`) 기반 gauge를 추가하고, replication lag는 운영 DB 권한/구성 확인 후 `pg_stat_replication` 기반 수집 가능 여부를 결정한다.
+- 검증 계획: 로컬에서 pool gauge 변동 확인, 운영형 환경에서 replication lag 수집 가능성 PoC 후 채택 여부 확정.
+- 재검토 트리거: Cloud-Secure 운영 환경 모니터링 표준이 확정되는 시점.
+
+## DEC-207~217 의존성 작업 묶음
+
+### 묶음 A - 정책/참조 정합성 선행 ✓ 완료
+
+- 포함 DEC: `DEC-214`(일치, False Positive 종결), `DEC-215`(옵션 C 채택, 구현 완료)
+- 산출: DEC-214 SRS 참조 경로 정상 확인, DEC-215 `ADMIN_READ|ADMIN_AUDIT` 다중 허용 + 역할 매트릭스 테스트 추가
+
+### 묶음 B - 데이터 정합성 핵심 로직 ✓ 완료
+
+- 포함 DEC: `DEC-210`, `DEC-211`, `DEC-216`
+- 선행 의존성: 묶음 A
+- 선행 이유: LWW/페어링/related_type 범위가 API 응답 정확도와 운영 지표의 기준값을 결정한다.
+- 산출:
+  - DEC-210: `src/db/upsert.py` fallback에 `existing_updated/version IS NULL` 가드 추가 + 통합 테스트 2건
+  - DEC-211: `src/db/admin_tx.py` peer 쿼리에 `entry_type` 필터 + `ORDER BY` 추가 + 단위 테스트 1건
+  - DEC-216: `src/consumer/processor.py` 가드 조건을 `related_type in {None, PAYMENT_ORDER}`로 변경 + 단위 테스트 3건
+
+### 묶음 C - API/감사 인터페이스
+
+- 포함 DEC: `DEC-207`, `DEC-208`
+- 선행 의존성: 묶음 A, 묶음 B
+- 선행 이유: endpoint 확장/감사 필드(`result_count`)는 역할 정책과 데이터 정합성 규칙이 고정된 뒤 설계해야 재작업이 줄어든다.
+- 주요 산출: 신규 라우트 설계, 감사로그 스키마 확장 설계
+
+### 묶음 D - 관측/알림 운영화
+
+- 포함 DEC: `DEC-212`, `DEC-217`
+- 선행 의존성: 묶음 B, 묶음 C
+- 선행 이유: 메트릭/알림 설계는 최종 API/DB 동작과 role/pairing 정책을 반영해야 이름/임계치 드리프트를 줄일 수 있다.
+- 주요 산출: alert rule 파일 복원 설계, DB pool/replication lag 계측 설계
+
+### 묶음 E - 검증 체계 마감
+
+- 포함 DEC: `DEC-213`
+- 선행 의존성: 묶음 B, 묶음 C, 묶음 D
+- 선행 이유: 누락 테스트는 앞선 묶음의 확정 설계를 반영해 한 번에 회귀셋으로 고정해야 한다.
+- 주요 산출: 403 권한 테스트, 혼합 metadata LWW 테스트, 다건 peer fallback 테스트, 관측성 회귀 테스트
+
+### 독립 트랙
+
+- `DEC-209`는 현재 **일치 판정(갭 없음)** 으로 독립 관리한다.
+- 단, 묶음 C/D에서 스키마 변경(`admin_audit_logs` 확장 등)이 발생하면 `DEC-209`에 재검토 링크를 남긴다.
+
+### 권장 수행 순서
+
+1. 묶음 A
+2. 묶음 B
+3. 묶음 C
+4. 묶음 D
+5. 묶음 E
+
+## DEC-207~214 실행 검증 결과 (2026-02-12)
+
+- 증빙 로그 경로: `.agents/logs/verification/dec207_214/`
+- 증빙 수집 명령 실행: 완료 (`01`~`12` 로그)
+- 테스트 실행 결과:
+  - `pytest tests/unit/test_api_routes.py tests/unit/test_api_service.py tests/unit/test_auth.py tests/unit/test_processor.py tests/unit/test_pairing.py -x` 실패
+  - 실패 사유: `ModuleNotFoundError: No module named 'fastapi'`
+  - 로그: `.agents/logs/verification/dec207_214/13_unit_targeted_pytest.log`
+  - `pytest tests/integration/test_db_integration.py -x` 실패
+  - 실패 사유: `ModuleNotFoundError: No module named 'sqlalchemy'`
+  - 로그: `.agents/logs/verification/dec207_214/14_integration_db_pytest.log`
+- L0 검증:
+  - `python -m py_compile $(find src -name '*.py')` 성공
+  - 로그: `.agents/logs/verification/dec207_214/15_l0_py_compile.log`

@@ -265,6 +265,51 @@ def test_build_admin_tx_response_receive_perspective() -> None:
     assert response.receiver_wallet_id == "wallet-rec"
 
 
+def test_build_admin_tx_response_same_type_peer_not_used() -> None:
+    """DEC-211: when peer_entry has the same entry_type as the looked-up entry,
+    the pairing fields for the opposite side must remain empty (INCOMPLETE)."""
+    ledger = LedgerEntryStub(
+        tx_id="tx-pay1",
+        wallet_id="wallet-pay1",
+        entry_type="PAYMENT",
+        amount=Decimal("10.00"),
+        amount_signed=Decimal("-10.00"),
+        related_id="po-1",
+        related_type="PAYMENT_ORDER",
+        event_time=_dt("2026-02-05T01:00:00Z"),
+        created_at=_dt("2026-02-05T01:00:00Z"),
+        updated_at=_dt("2026-02-05T01:00:01Z"),
+        source_version=1,
+        ingested_at=_dt("2026-02-05T01:00:02Z"),
+    )
+    same_type_peer = LedgerEntryStub(
+        tx_id="tx-pay2",
+        wallet_id="wallet-pay2",
+        entry_type="PAYMENT",
+        amount=Decimal("10.00"),
+        amount_signed=Decimal("-10.00"),
+        related_id="po-1",
+        related_type="PAYMENT_ORDER",
+        event_time=_dt("2026-02-05T01:00:00Z"),
+        created_at=_dt("2026-02-05T01:00:00Z"),
+        updated_at=_dt("2026-02-05T01:00:01Z"),
+        source_version=1,
+        ingested_at=_dt("2026-02-05T01:00:02Z"),
+    )
+    context = AdminTxContext(
+        ledger_entry=ledger,
+        payment_order=None,
+        payment_pair=None,
+        peer_entry=same_type_peer,
+    )
+
+    response = build_admin_tx_response(context)
+
+    assert response.pairing_status == PairingStatus.INCOMPLETE
+    assert response.receiver_wallet_id is None
+    assert response.paired_tx_id is None
+
+
 def test_build_admin_tx_response_peer_entry_fallback() -> None:
     ledger = LedgerEntryStub(
         tx_id="tx-pay",

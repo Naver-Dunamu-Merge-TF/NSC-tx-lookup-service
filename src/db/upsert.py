@@ -54,6 +54,9 @@ def latest_wins_upsert(
         fallback_checks = [incoming_updated.is_(None)]
         if version_col in table.c:
             fallback_checks.append(incoming_version.is_(None))
+        fallback_checks.append(existing_updated.is_(None))
+        if version_col in table.c:
+            fallback_checks.append(existing_version.is_(None))
         fallback_checks.append(incoming_ingested >= existing_ingested)
         conditions.append(and_(*fallback_checks))
 

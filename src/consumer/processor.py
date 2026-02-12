@@ -40,7 +40,7 @@ def upsert_ledger_entry(
 
     missing_version = event.updated_at is None and event.source_version is None
     pairing_snapshot = None
-    if event.related_id:
+    if event.related_id and event.related_type in (None, "PAYMENT_ORDER"):
         pairing_snapshot = update_pairing_for_related_id(session, event.related_id)
 
     return missing_version, pairing_snapshot
