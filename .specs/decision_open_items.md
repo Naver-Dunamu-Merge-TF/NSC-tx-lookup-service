@@ -318,13 +318,16 @@
 
 ### DEC-213 갭 7 - 테스트 커버리지 계약 점검
 
-- 상태: **결정됨(갭 확인, 2026-02-12)**
-- 확인 결과: happy path 중심 테스트는 충분하지만, error/idempotency의 핵심 회귀 시나리오 일부가 누락되어 있다.
-- 갭 설명: 403 인가 거부(역할 부족), 혼합 metadata LWW 역전 방지, 다건 fallback peer 선택 정확도 시나리오가 현재 테스트 세트에 없다.
+- 상태: **해결됨(테스트 보강 완료, 2026-02-12)**
+- 확인 결과: gap으로 식별했던 핵심 회귀 시나리오(403, 혼합 metadata LWW, peer fallback 정확도)가 테스트 세트에 반영되었다.
+- 갭 설명(기존): 403 인가 거부(역할 부족), 혼합 metadata LWW 역전 방지, 다건 fallback peer 선택 정확도 시나리오가 현재 테스트 세트에 없었다.
 - 근거(문서/코드 경로): `AGENTS.md` Testing strategy, `tests/unit/test_api_routes.py`, `tests/integration/test_db_integration.py`, `tests/unit/test_processor.py`, `.agents/logs/verification/dec207_214/12_test_coverage_rg.log`
-- 영향: 권한/정합성 회귀가 발생해도 CI에서 조기 탐지되지 않을 수 있다.
-- 개선안 설계: `tests/unit/test_api_routes.py`에 403 케이스, `tests/integration/test_db_integration.py`에 혼합 metadata upsert 케이스, `tests/integration/test_admin_tx_integration.py`에 다건 peer fallback 케이스를 추가한다.
-- 검증 계획: 단위(`.venv/bin/python -m pytest tests/unit/...`) + 통합(`.venv/bin/python -m pytest tests/integration/...`) 분리 실행 후 실패 시나리오를 회귀셋으로 고정한다.
+- 영향: 권한/정합성 회귀의 조기 탐지 가능성이 높아졌다.
+- 구현:
+  - `tests/unit/test_api_routes.py`에 403 인가 거부 케이스 추가(`test_get_admin_tx_forbidden_no_matching_role`)
+  - `tests/integration/test_db_integration.py`에 혼합 metadata LWW 역전 방지 케이스 추가(`test_latest_wins_upsert_versioned_not_overwritten_by_unversioned`)
+  - `tests/unit/test_api_service.py`에 peer fallback 정확도 케이스 추가(`test_build_admin_tx_response_same_type_peer_not_used`)
+- 검증 근거: `.agents/logs/verification/dec207_214/17_l1_targeted_unit_venv.log`, `.agents/logs/verification/dec207_214/18_l1_integration_db_venv.log`
 - 재검토 트리거: 신규 endpoint 추가 또는 LWW/pairing 조건식 변경 시.
 
 ### DEC-214 갭 8 - 문서 참조 무결성/드리프트 점검
@@ -373,6 +376,49 @@
   - `tests/unit/test_db_pool_metrics.py` — replication lag callback/provider 단위 테스트 추가.
 - 검증: L0(py_compile) 통과, L1(unit) 통과. 실행 인터프리터 차이로 발생한 의존성 이슈는 아래 실행 로그 섹션에 기록.
 - 재검토 트리거: Cloud-Secure에서 read-replica 토폴로지/권한 정책이 변경되어 SQL 기반 lag 계산식 조정이 필요한 경우.
+
+### DEC-218 문서-코드 괴리 - SRS FR-ADM-02 구현 상태
+
+- 상태: **해결됨(문서 반영 완료, 2026-02-12)**
+- 확인 결과: SRS에는 FR-ADM-02가 `[ ]`로 남아 있었지만, 코드/테스트 기준으로는 구현되어 있었다.
+- 갭 설명: 요구사항 구현 현황 표가 실제 구현 상태와 달라 문서 신뢰도를 떨어뜨린다.
+- 근거(문서/코드 경로): `.specs/requirements/SRS - Software Requirements Specification.md`, `src/api/main.py`, `tests/e2e/test_admin_tx_e2e.py`
+- 영향: FR-ADM-02 진행 상태 커뮤니케이션 혼선 가능.
+- 구현: `.specs/requirements/SRS - Software Requirements Specification.md`의 FR-ADM-02 구현 상태를 `[x]`로 갱신.
+- 재검토 트리거: FR-ADM-02 범위가 축소/변경되는 경우.
+
+### DEC-219 문서-코드 괴리 - `.specs/project_specs.md` 참조 무결성
+
+- 상태: **해결됨(문서 정정 완료, 2026-02-12)**
+- 확인 결과: 여러 스펙 문서가 `.specs/project_specs.md`를 참조하지만 해당 파일이 저장소에 없다.
+- 갭 설명: 문서 내부 링크가 끊겨 설계 추적 경로가 단절된다.
+- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md`, `.specs/backoffice_db_admin_api.md`, `.specs/backoffice_data_project.md`
+- 영향: 신규 참여자가 연계 스펙을 찾지 못해 의사결정/구현 속도가 저하될 수 있다.
+- 구현: 3개 문서의 참조를 `.specs/reference/entire_architecture.md`로 일괄 정정.
+- 재검토 트리거: Lakehouse 보조 경로 문서를 신규/복구 배치할 때.
+
+### DEC-220 문서-코드 괴리 - `payment_orders.updated_at` 설명 드리프트
+
+- 상태: **해결됨(문서 정정 완료, 2026-02-12)**
+- 확인 결과: 문서 일부는 `payment_orders.updated_at` 부재를 전제로 서술하지만, 현재 스키마/모델에는 필드가 존재한다.
+- 갭 설명: 스키마 설명이 최신 구현보다 뒤처져 이벤트 계약 가이드를 혼동시킨다.
+- 근거(문서/코드 경로): `.specs/backoffice_db_admin_api.md`, `.specs/backoffice_data_project.md`, `src/db/models.py`, `migrations/versions/20260205_0001_create_backoffice_schema.py`
+- 영향: 업스트림 이벤트 계약 협의 시 불필요한 “updated_at 부재” 논의가 반복될 수 있다.
+- 구현: 두 문서의 관련 문구를 “컬럼은 존재, 이벤트 제공률/표준화는 별도 결정”으로 정정.
+- 재검토 트리거: `updated_at`/`version` 강제 정책이 이벤트 계약으로 확정될 때.
+
+### DEC-221 문서-코드 괴리 - 인증/감사 정책과 기본 런타임 동작
+
+- 상태: **해결됨(문서 정정 완료, 2026-02-12)**
+- 확인 결과: 스펙은 “모든 요청 인증/인가 + 감사로그”를 요구하나, 기본 설정(`AUTH_MODE=disabled`)에서는 인증이 비활성화될 수 있고, 인증 실패(401/403)는 라우트 진입 전 발생해 DB 감사로그가 남지 않는다.
+- 갭 설명: 운영 정책 문구와 실제 기본 런타임/실패 경로 동작 사이에 해석 차이가 있다.
+- 근거(문서/코드 경로): `.specs/backoffice_project_specs.md`, `.specs/backoffice_db_admin_api.md`, `configs/env.example`, `src/common/config.py`, `src/api/auth.py`, `src/api/main.py`
+- 영향: “모든 요청 감사” 범위를 성공/실패 경로까지 어떻게 볼지 팀 내 해석이 달라질 수 있다.
+- 구현:
+  - `.specs/backoffice_project_specs.md`에 `local/dev`의 `AUTH_MODE=disabled` 예외를 명시
+  - 운영형(Cloud-Secure) 기준 인증/인가 요구사항을 명시
+  - `.specs/backoffice_db_admin_api.md`에 “조회 요청은 DB 감사로그, 401/403은 인증 계층 로그”를 명시
+- 재검토 트리거: Cloud-Secure 운영 정책 확정 또는 보안 감사 요구사항 강화 시.
 
 ## DEC-207~217 의존성 작업 묶음
 

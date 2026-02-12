@@ -4,7 +4,7 @@
 > - 프로젝트 스펙(Serving): `.specs/backoffice_project_specs.md`
 > - 데이터 프로젝트(동기화): `.specs/backoffice_data_project.md`
 > - 요구사항(원본/참고): `.specs/requirements/SRS - Software Requirements Specification.md` (FR-ADM-02)
-> - Lakehouse 스펙(비범위/보조 경로 참고): `.specs/project_specs.md`
+> - 아키텍처 참고(비범위/보조 경로): `.specs/reference/entire_architecture.md`
 >
 > **목표**: `tx_id` 기반 **초 단위(near real-time)** 거래 추적 조회(관리자 화면/툴)
 
@@ -107,8 +107,7 @@ OLTP `payment_orders`를 서빙 관점으로 복제.
   - `amount` (decimal)
   - `status` (string, index)
   - `created_at` (timestamp, index)
-  - `updated_at` (timestamp, **권장**)  
-    - 현재 스키마에 없으면, 서비스 이벤트에 “상태 변경 시각”을 포함하는 방식으로 보강 권장
+  - `updated_at` (timestamp, nullable, 권장)
 
 ### 4.3 테이블: `bo.payment_ledger_pairs` (권장: 성능/단순성)
 
@@ -150,7 +149,8 @@ OLTP `payment_orders`를 서빙 관점으로 복제.
 
 - 사내 SSO(OIDC) 또는 JWT 기반 인증
 - Role 기반 접근 제어(RBAC): `ADMIN_READ`, `ADMIN_AUDIT` 등
-- 모든 조회는 감사로그로 남긴다(누가/언제/어떤 키로 조회했는지)
+- 조회 요청(성공/404 포함)은 감사로그로 남긴다(누가/언제/어떤 키로 조회했는지)
+- 인증/인가 실패(401/403)는 라우트 진입 전 차단될 수 있으므로 인증 계층 로그로 추적한다
 
 ### 5.2 엔드포인트
 
@@ -237,7 +237,7 @@ Serving 계층도 관측이 필요하다(데이터브릭스 통제 지표와 별
 
 ## 8) 오픈 이슈(결정 필요하지만 개발은 진행 가능)
 
-- `status`의 SSOT와 상태 전이 시각(현재 스키마에는 `payment_orders.updated_at` 없음)
+- `status`의 SSOT와 상태 전이 시각(`updated_at/settled_at/failed_at`) 표준화
 - `amount_signed`의 SSOT(업스트림 저장 vs 룰 기반 파생) 및 unknown type 처리
 - `related_id`가 여러 도메인을 가리킬 경우 `related_type` 제공 여부
 - 환불/취소/정정(역분개) 엔트리 타입 정의 및 페어링 규칙 확장

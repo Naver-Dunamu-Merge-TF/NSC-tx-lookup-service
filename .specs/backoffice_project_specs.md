@@ -7,7 +7,7 @@
 > **연계 문서**
 > - DB/API 상세 설계: `.specs/backoffice_db_admin_api.md`
 > - 데이터 동기화(OLTP→BO) 설계: `.specs/backoffice_data_project.md`
-> - Lakehouse 스펙(비범위/보조 경로 참고): `.specs/project_specs.md`
+> - 아키텍처 참고(비범위/보조 경로): `.specs/reference/entire_architecture.md`
 
 ---
 
@@ -36,7 +36,7 @@
 - `GET /admin/tx/{tx_id}`가 p95 200ms 이내(내부망 기준, 조정 가능)
 - OLTP 커밋 이후 Backoffice 반영 p95 5초 이내(초 단위 목표)
 - 장애 시에도 데이터 정합성이 깨지지 않고 재처리로 수렴(멱등)
-- 모든 요청이 인증/인가되고, 감사로그가 남는다
+- Cloud-Secure(운영형) 기준 모든 요청이 인증/인가되고, 조회 요청 감사로그가 남는다
 
 ---
 
@@ -118,6 +118,8 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 - 인증: OIDC/JWT(사내 SSO)
 - 인가: RBAC (`ADMIN_READ`, `ADMIN_AUDIT` 등)
 - 감사로그: `who/when/what(tx_id or order_id)/result_count/ip/user_agent`
+- `local/dev`에서는 개발 편의를 위해 `AUTH_MODE=disabled`를 허용하되, 운영형에서는 금지한다
+- 인증/인가 실패(401/403)는 라우트 진입 전 차단될 수 있으므로 DB 감사로그 대신 API/게이트웨이 로그로 추적한다
 - 비밀번호/credential 데이터는 절대 적재/노출 금지
 
 ---

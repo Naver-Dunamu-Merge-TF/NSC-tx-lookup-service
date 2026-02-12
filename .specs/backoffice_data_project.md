@@ -4,7 +4,7 @@
 >
 > **연계 문서**
 > - Backoffice DB + Admin API: `.specs/backoffice_db_admin_api.md`
-> - Lakehouse(데이터브릭스) 스펙(참고): `.specs/project_specs.md`
+> - 아키텍처 참고(비범위/보조 경로): `.specs/reference/entire_architecture.md`
 
 ---
 
@@ -167,7 +167,7 @@
 2) **단순 upsert + 마지막 write wins**  
    - out-of-order 이벤트에서 역전 가능(권장하지 않음)
 
-> 현재 `payment_orders` 스키마에 `updated_at`이 없으므로, 초 단위 운영이면 업스트림 이벤트에 상태 변경 시각/버전을 포함하는 방식을 권장.
+> `payment_orders.updated_at` 컬럼은 존재한다. 다만 초 단위 운영 안정성을 위해 업스트림 이벤트에서 `updated_at` 또는 `version` 제공률을 보장하는 방식을 권장한다.
 
 ### 5.3 페어링 처리(방법 2 가정)
 

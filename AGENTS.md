@@ -19,6 +19,7 @@ near real-time `tx_id` based queries.
  - Backoffice DB is a **read-only derived store**
  - Write transactions only in OLTP; Backoffice receives via Sync Consumer
  - All upserts must be **idempotent**
+ - This repository is **consumer-only** for event ingestion (producer ownership is upstream services)
 
 See `.specs/backoffice_project_specs.md` for full project specs and decision locks.
 
@@ -60,9 +61,11 @@ Repository structure
 │   └── common/        # Shared utilities
 ├── tests/
 │   ├── unit/
-│   └── integration/
+│   ├── integration/
+│   └── e2e/
 ├── migrations/        # Alembic migrations
 ├── docker/
+├── scripts/
 ├── configs/
 └── .specs/            # Specifications (SSOT)
 ```
@@ -83,7 +86,10 @@ Code patterns
 
  - **Idempotency**: Upsert by key (`tx_id`, `order_id`), latest-wins by `updated_at`
  - **Pairing**: Allow partial pairs; track `pair_incomplete` status
- - **API responses**: 404 if not found; 200 with `pairing_status` if incomplete
+ - **Admin API responses**:
+   - `GET /admin/tx/{tx_id}`: 404 if not found; 200 with `pairing_status` for incomplete/unknown pairing
+   - `GET /admin/payment-orders/{order_id}`: 404 if not found
+   - `GET /admin/wallets/{wallet_id}/tx`: 200 with empty list allowed
 
 See `.specs/backoffice_data_project.md` for sync and pairing details.
 
@@ -108,9 +114,9 @@ Testing strategy
  - `src/db/`: Repository CRUD + upsert idempotency
 
 **Quality gates:**
- - Unit coverage: ≥ 80% (L2 verification)
- - PR gate: Unit + Integration pass (L1)
- - Merge gate: E2E smoke test pass (L3)
+ - L1: Unit tests pass
+ - L2: Coverage gate pass (≥ 80%) and run integration tests for touched DB/API paths
+ - L3: E2E smoke test pass (required for pairing logic or response schema changes)
 
 **Test file naming:**
  - Unit: `tests/unit/test_<module>.py`
@@ -164,7 +170,7 @@ Key references
 | `.specs/backoffice_project_specs.md` | Project specs, Decision Lock |
 | `.specs/backoffice_db_admin_api.md` | DB + API design |
 | `.specs/backoffice_data_project.md` | Sync specs |
-| `.specs/database_schema` | OLTP schema |
+| `.specs/reference/entire_architecture.md` | Architecture reference (non-SSOT) |
 
 Decision hygiene
 ----------------
