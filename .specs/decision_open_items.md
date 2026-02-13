@@ -420,6 +420,30 @@
   - `.specs/backoffice_db_admin_api.md`에 “조회 요청은 DB 감사로그, 401/403은 인증 계층 로그”를 명시
 - 재검토 트리거: Cloud-Secure 운영 정책 확정 또는 보안 감사 요구사항 강화 시.
 
+### DEC-222 이벤트 계약 - `entry_type` 허용 값 정책
+
+- 상태: **결정됨(2026-02-13)**
+- 결정: 이벤트 계약에서 `entry_type`은 **`PAYMENT`/`RECEIVE`만 필수 계약으로 명시**한다. 그 외 값(`CHARGE`, `WITHDRAW`, `REFUND_IN` 등)은 자유 텍스트로 허용하고, Consumer는 저장만 수행한다.
+- 근거: 현재 코드에서 `entry_type`에 의존하는 로직은 페어링(`src/consumer/pairing.py`, `src/api/service.py`)뿐이며, 페어링은 `PAYMENT`/`RECEIVE`만 사용한다. 나머지 값은 `bo.ledger_entries`에 원문 저장되지만 비즈니스 로직에 영향을 주지 않는다. Databricks Ledger Pipelines에서 사용하는 10종(`CHARGE, RECEIVE, PAYMENT, WITHDRAW, REFUND_IN, REFUND_OUT, MINT, BURN, HOLD, RELEASE`)과의 조직 전체 통일은 별도 합의가 필요하므로, 현 단계에서는 최소 계약만 확정한다.
+- 영향: 업스트림이 기존 `entry_type` 값을 변경할 필요 없이 `PAYMENT`/`RECEIVE`만 올바르게 태깅하면 페어링이 동작한다. 매핑 안 되는 값은 `pairing_status=UNKNOWN`으로 처리된다.
+- 재검토 트리거: Databricks 쪽과 `entry_type` vocabulary 통일 합의가 이루어질 때, 또는 페어링 외 로직에서 특정 `entry_type`을 분기 처리해야 할 때.
+
+### DEC-223 이벤트 계약 - `status` 허용 값 정책
+
+- 상태: **결정됨(2026-02-13)**
+- 결정: `payment_orders.status`는 **자유 텍스트로 허용**한다. Consumer는 원문을 그대로 저장하고, API는 v1 매핑표(DEC-206)로 `status_group`을 계산한다. 매핑 안 되는 값은 `UNKNOWN`으로 그룹핑된다.
+- 근거: 현재 `src/api/service.py`의 `_resolve_status_group()`이 이미 이 방식으로 동작한다. `status` 원문은 `bo.payment_orders.status` 필드에 항상 보존되므로 관리자가 원문 확인 가능하다. 업스트림 status taxonomy가 확정되지 않은 상태에서 값을 강제하면 불필요한 변환 부담이 생긴다.
+- 영향: 업스트림이 자체 status 값(예: `APPROVED`, `REFUNDING`)을 그대로 보내도 Consumer 처리에 문제없다. `UNKNOWN` 그룹이 많아지면 v1 매핑표에 값을 추가하면 된다(코드 변경: `_resolve_status_group()` 1곳).
+- 재검토 트리거: 업스트림 status taxonomy가 공식 확정되어 v2 매핑표를 정의할 때, 또는 `UNKNOWN` 비율이 운영 SLO를 위반할 때.
+
+### DEC-224 이벤트 계약 - 삭제/취소 이벤트 정책
+
+- 상태: **결정됨(2026-02-13)**
+- 결정: **삭제(tombstone) 이벤트는 지원하지 않는다.** 원장 거래의 취소/환불은 별도 `entry_type`(예: `REFUND_IN`/`REFUND_OUT`)의 새 이벤트로 표현한다. 결제 주문의 취소는 `status` 변경 이벤트(예: `status=CANCELLED`)로 처리하며, 기존 upsert 경로에서 자연스럽게 반영된다.
+- 근거: 금융 원장(ledger)은 삭제 불가가 원칙이며, 취소/수정은 역분개(reversal) 이벤트로 처리하는 것이 복식부기의 기본 설계다. 현재 코드는 upsert 전용(`src/db/upsert.py`)이며, delete 경로를 추가하면 페어링 상태 연쇄 업데이트, 감사로그 정합성 등 복잡도가 크게 증가한다. 테스트 데이터 정리 등 운영 목적의 삭제가 필요하면 DB 직접 조작(운영 스크립트)으로 처리한다.
+- 영향: 업스트림은 삭제 이벤트를 발행할 필요가 없다. 취소된 거래도 Backoffice DB에 남으며, `status_group=FAIL`로 조회된다. 관리자는 취소된 거래의 이력을 추적할 수 있다.
+- 재검토 트리거: GDPR 등 규제로 개인정보 포함 거래의 물리적 삭제가 요구되는 경우, 또는 운영 요구에 의해 soft delete 상태 관리가 필요해지는 경우.
+
 ## DEC-207~217 의존성 작업 묶음
 
 ### 묶음 A - 정책/참조 정합성 선행 ✓ 완료
