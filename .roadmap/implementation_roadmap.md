@@ -78,10 +78,19 @@ Last updated: 2026-02-24
   - Action Group 채널은 플랫폼팀 관리, 본 저장소는 `ACTION_GROUP_ID` 인터페이스만 관리한다.
 
 #### 대형 태스크 F3-3: 품질 게이트 마감
-- [ ] L2 게이트(`.venv/bin/python -m pytest --cov-fail-under=80`) 정기 통과 상태 확보
-- [ ] 페어링/상태 변경 관련 L3 스모크 기준 시나리오 확정 (AKS/클러스터 내 실행 포함)
+- [x] L2 게이트(`.venv/bin/python -m pytest --cov-fail-under=80`) 정기 통과 상태 확보
+- [x] 페어링/상태 변경 관련 L3 스모크 기준 시나리오 확정 (AKS/클러스터 내 실행 포함)
 - [ ] AKS/클러스터 내 검증 수행 및 증빙 확보 (E2 진입 전 최소 1회, 이후 정기 회귀)
-- [ ] F3 완료 판정 체크리스트(계약, 알림, 테스트) 문서화
+- [x] F3 완료 판정 체크리스트(계약, 알림, 테스트) 문서화
+- 상태 메모: `CONDITIONAL (L3 deferred by DEC-226)` / E2 진입은 L3 pass 증빙 전까지 차단
+- 실행 방식(고정):
+  - 서브에이전트 루프 고정: `Implementer -> Spec Reviewer -> Code Quality Reviewer -> Fix/Re-review`
+  - 근거(운영 런북): `docs/ops/f3_3_quality_gate_runbook.md`
+  - 근거(L3 시나리오): `docs/ops/f3_3_l3_cluster_smoke_scenarios.md`
+  - 근거(완료 체크리스트): `docs/ops/f3_3_closeout_checklist.md`
+  - 근거(결정): `.specs/decision_open_items.md` (`DEC-226`, `DEC-235`)
+  - 근거(검증 로그): `.agents/logs/verification/20260223_174702_f3_3_task1/`, `.agents/logs/verification/20260223_174800_f3_3_task2/`, `.agents/logs/verification/20260223_174856_f3_3_task3/`, `.agents/logs/verification/20260223_175009_f3_3_task4/`, `.agents/logs/verification/20260223_175121_f3_3_task5/`
+  - 근거(L3 조건부 증빙): `.agents/logs/verification/20260223_175150_f3_3_l3_blocked/`
 
 #### 대형 태스크 F3-4: AKS 조기 검증 트랙
 - [ ] AKS 상태 안정화 확인(`provisioningState=Succeeded`) 및 `txlookup` namespace 준비
@@ -155,3 +164,4 @@ Last updated: 2026-02-24
   - `.agents/logs/verification/20260212_fe_roadmap_enhance_l0_py_compile.log`
   - `.agents/logs/verification/20260212_fe_roadmap_enhance_structure_check.log`
   - `.agents/logs/verification/20260224_000257_roadmap_aks_reenable_l0_py_compile.log`
+  - `.agents/logs/verification/20260224_023600_f3_3_plan_doc_l0_py_compile.log`

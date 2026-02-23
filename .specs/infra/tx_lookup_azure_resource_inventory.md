@@ -94,6 +94,15 @@
 인프라 변경 시점 또는 주요 배포 게이트 전에 본 문서를 갱신한다.
 AKS/클러스터 내 검증은 문서 최종화 전에 반드시 1회 수행하고 증빙을 남긴다.
 
+### 8.1 F3-3 증빙 계약 연계
+
+- 운영 런북: `docs/ops/f3_3_quality_gate_runbook.md`
+- 증빙 템플릿: `docs/ops/f3_3_validation_evidence_template.md`
+- L3 실행 개시 조건:
+  - `provisioningState=Succeeded`
+  - `txlookup namespace ready`
+- 조건 미충족 시 `.agents/logs/verification/<timestamp>_f3_3_l3_blocked/`에 차단 증빙을 남기고 `DEC-226` 조건부 허용 정책을 적용한다.
+
 1. 대상 구독/리소스 그룹 확인:
    - `az account show`
    - `az group show --name 2dt-final-team4`

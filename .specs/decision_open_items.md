@@ -532,6 +532,15 @@
 - 재검토 트리거: 팀 내 알림 채널 소유권이 애플리케이션 팀으로 이관되거나, 사전 비활성화 정책이 도입되는 경우.
 - 근거: `docs/ops/f3_2_slo_alerts_runbook.md`, `.specs/infra/tx_lookup_azure_resource_inventory.md`
 
+### DEC-235 F3-3 조건부 마감(Conditional Allow) 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: AKS 미준비 시 F3-3 문서/프로세스 마감은 `CONDITIONAL (L3 deferred by DEC-226)` 상태로 승인 가능하다. 단, 이는 F3-3 closeout checklist 완료 범위에 한정하며 E2 진입 승인은 허용하지 않는다.
+- 영향: F3-3 완료 보고는 문서 정합성과 L0/L1/L2 증빙을 기준으로 진행할 수 있으나, E2는 성공 L3 in-cluster 증빙 업로드 전까지 hard-block 유지된다.
+- 최소 defer 증빙: readiness 실패 로그(`az aks show`, `kubectl`), defer owner, retry date, unblock criteria(`provisioningState=Succeeded` + `txlookup namespace ready`), `DEC-226` 참조.
+- 재검토 트리거: 성공 L3 pass bundle이 생성되거나 AKS 운영 정책이 변경되는 경우.
+- 근거: `docs/ops/f3_3_quality_gate_runbook.md`, `docs/ops/f3_3_closeout_checklist.md`, `docs/ops/f3_3_validation_evidence_template.md`
+
 ## DEC-207~217 의존성 작업 묶음
 
 ### 묶음 A - 정책/참조 정합성 선행 ✓ 완료
