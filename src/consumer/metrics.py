@@ -30,6 +30,21 @@ VERSION_MISSING_TOTAL = _meter.create_counter(
     description="Events missing updated_at/source_version",
 )
 
+CONTRACT_ALIAS_HIT_TOTAL = _meter.create_counter(
+    name="consumer_contract_alias_hit_total",
+    description="Alias resolution hits while normalizing contract payloads",
+)
+
+CONTRACT_CORE_VIOLATION_TOTAL = _meter.create_counter(
+    name="consumer_contract_core_violation_total",
+    description="Core contract violations detected during normalization",
+)
+
+CONTRACT_PROFILE_MESSAGES_TOTAL = _meter.create_counter(
+    name="consumer_contract_profile_messages_total",
+    description="Messages processed per contract profile",
+)
+
 PAIR_TOTAL = _meter.create_counter(
     name="pairing_total",
     description="Total pairing calculations",
@@ -118,6 +133,37 @@ def record_dlq(topic: str) -> None:
 def record_version_missing(topic: str, missing: bool) -> None:
     if missing:
         VERSION_MISSING_TOTAL.add(1, attributes={"topic": topic})
+
+
+def record_contract_alias_hit(
+    topic: str,
+    profile_id: str,
+    canonical_key: str,
+    alias_key: str,
+) -> None:
+    CONTRACT_ALIAS_HIT_TOTAL.add(
+        1,
+        attributes={
+            "topic": topic,
+            "profile_id": profile_id,
+            "canonical_key": canonical_key,
+            "alias_key": alias_key,
+        },
+    )
+
+
+def record_contract_core_violation(topic: str, profile_id: str) -> None:
+    CONTRACT_CORE_VIOLATION_TOTAL.add(
+        1,
+        attributes={"topic": topic, "profile_id": profile_id},
+    )
+
+
+def record_contract_profile_message(topic: str, profile_id: str) -> None:
+    CONTRACT_PROFILE_MESSAGES_TOTAL.add(
+        1,
+        attributes={"topic": topic, "profile_id": profile_id},
+    )
 
 
 @dataclass
