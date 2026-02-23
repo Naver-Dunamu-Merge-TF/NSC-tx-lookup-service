@@ -61,3 +61,43 @@ def test_load_config_invalid_integer():
 def test_load_config_prod_dlq_defaults_to_db():
     config = load_config(env={"APP_ENV": "prod"})
     assert config.dlq_backend == "db"
+
+
+def test_load_config_uses_default_event_profile():
+    config = load_config(env={})
+    assert config.event_profile_id == "canonical-v1"
+    assert config.effective_ledger_topic == "ledger.entry.upserted"
+    assert config.effective_payment_order_topic == "payment.order.upserted"
+
+
+def test_load_config_uses_profile_topics():
+    config = load_config(env={"EVENT_PROFILE_ID": "nsc-dev-v1"})
+    assert config.event_profile_id == "nsc-dev-v1"
+    assert config.effective_ledger_topic == "cdc-events"
+    assert config.effective_payment_order_topic == "order-events"
+
+
+def test_load_config_topic_override_is_independent_per_key():
+    config = load_config(
+        env={
+            "EVENT_PROFILE_ID": "nsc-dev-v1",
+            "LEDGER_TOPIC": "ledger.override",
+        }
+    )
+    assert config.effective_ledger_topic == "ledger.override"
+    assert config.effective_payment_order_topic == "order-events"
+
+
+def test_load_config_invalid_event_profile_id():
+    with pytest.raises(ValueError, match="EVENT_PROFILE_ID"):
+        load_config(env={"EVENT_PROFILE_ID": "unknown-profile"})
+
+
+def test_load_config_rejects_same_effective_topics():
+    with pytest.raises(ValueError, match="distinct"):
+        load_config(
+            env={
+                "LEDGER_TOPIC": "same.topic",
+                "PAYMENT_ORDER_TOPIC": "same.topic",
+            }
+        )

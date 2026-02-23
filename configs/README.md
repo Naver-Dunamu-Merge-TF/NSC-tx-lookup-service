@@ -18,8 +18,9 @@ Required variables (current skeleton)
 - `KAFKA_SSL_CA_LOCATION`: optional CA file path for SSL validation
 - `SERVICE_NAME`: service identifier for logs/metrics
 - `KAFKA_GROUP_ID`: consumer group id
-- `LEDGER_TOPIC`: ledger entry topic
-- `PAYMENT_ORDER_TOPIC`: payment order topic
+- `EVENT_PROFILE_ID`: event contract profile id (`canonical-v1` default)
+- `LEDGER_TOPIC`: optional ledger topic override (priority: env > profile > default)
+- `PAYMENT_ORDER_TOPIC`: optional payment order topic override (priority: env > profile > default)
 - `DLQ_BACKEND`: `file` or `db` (default: `file` for local/dev, `db` for prod)
 - `DLQ_PATH`: DLQ file path (when `DLQ_BACKEND=file`)
 - `DLQ_RETENTION_DAYS`: DLQ retention window in days (default `14`, when `DLQ_BACKEND=db`)
@@ -50,3 +51,5 @@ OIDC provider decision
 
 Examples
 - Copy `configs/env.example` and export values in your shell.
+- Event profile config is loaded once at process start. Changing `EVENT_PROFILE_ID`
+  at runtime is not supported; restart the process to apply changes.

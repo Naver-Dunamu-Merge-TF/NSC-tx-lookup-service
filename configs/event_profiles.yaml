@@ -1,0 +1,31 @@
+version: 1
+profiles:
+  canonical-v1:
+    topics:
+      ledger: ledger.entry.upserted
+      payment_order: payment.order.upserted
+    aliases:
+      ledger:
+        entry_type: [entry_type, type]
+        event_time: [event_time, source_created_at, created_at]
+        version: [version, source_version]
+      payment_order:
+        version: [version, source_version]
+    core_required:
+      ledger: [tx_id, wallet_id, entry_type, amount, event_time_or_alias]
+      payment_order: [order_id, amount, status, created_at]
+
+  nsc-dev-v1:
+    topics:
+      ledger: cdc-events
+      payment_order: order-events
+    aliases:
+      ledger:
+        entry_type: [entry_type, type]
+        event_time: [event_time, source_created_at, created_at]
+        version: [version, source_version]
+      payment_order:
+        version: [version, source_version]
+    core_required:
+      ledger: [tx_id, wallet_id, entry_type, amount, event_time_or_alias]
+      payment_order: [order_id, amount, status, created_at]

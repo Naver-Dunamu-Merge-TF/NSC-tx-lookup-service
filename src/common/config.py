@@ -4,6 +4,12 @@ import os
 from dataclasses import dataclass
 from typing import Mapping
 
+from src.common.event_profiles import (
+    DEFAULT_EVENT_PROFILE_ID,
+    DEFAULT_TOPICS,
+    load_event_profiles,
+)
+
 ALLOWED_ENVS = {"local", "dev", "prod"}
 ALLOWED_AUTH_MODES = {"disabled", "oidc"}
 ALLOWED_KAFKA_SECURITY_PROTOCOLS = {"PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL"}
@@ -25,6 +31,9 @@ class AppConfig:
     consumer_group_id: str
     ledger_topic: str
     payment_order_topic: str
+    event_profile_id: str
+    effective_ledger_topic: str
+    effective_payment_order_topic: str
     dlq_path: str
     dlq_backend: str
     dlq_retention_days: int
@@ -59,6 +68,14 @@ def _get_int(env: Mapping[str, str], key: str, default: int) -> int:
         return int(str(value).strip())
     except ValueError as exc:
         raise ValueError(f"{key} must be an integer (got {value!r})") from exc
+
+
+def _get_optional_env(env: Mapping[str, str], key: str) -> str | None:
+    value = env.get(key)
+    if value is None:
+        return None
+    trimmed = str(value).strip()
+    return trimmed or None
 
 
 def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
@@ -103,6 +120,34 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
             f"DLQ_BACKEND must be one of {sorted(ALLOWED_DLQ_BACKENDS)} (got {dlq_backend!r})"
         )
 
+    event_profile_id = _get_env(
+        source, "EVENT_PROFILE_ID", DEFAULT_EVENT_PROFILE_ID
+    )
+    profiles = load_event_profiles()
+    profile = profiles.get(event_profile_id)
+    if profile is None:
+        raise ValueError(
+            f"EVENT_PROFILE_ID must be one of {sorted(profiles.keys())} "
+            f"(got {event_profile_id!r})"
+        )
+
+    profile_topics = profile["topics"]
+    effective_ledger_topic = (
+        _get_optional_env(source, "LEDGER_TOPIC")
+        or str(profile_topics.get("ledger") or "").strip()
+        or DEFAULT_TOPICS["ledger"]
+    )
+    effective_payment_order_topic = (
+        _get_optional_env(source, "PAYMENT_ORDER_TOPIC")
+        or str(profile_topics.get("payment_order") or "").strip()
+        or DEFAULT_TOPICS["payment_order"]
+    )
+    if effective_ledger_topic == effective_payment_order_topic:
+        raise ValueError(
+            "effective ledger/payment topics must be distinct "
+            f"(got {effective_ledger_topic!r})"
+        )
+
     return AppConfig(
         app_env=app_env,
         log_level=_get_env(source, "LOG_LEVEL", "INFO"),
@@ -117,10 +162,11 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
         kafka_ssl_ca_location=_get_env(source, "KAFKA_SSL_CA_LOCATION", ""),
         service_name=_get_env(source, "SERVICE_NAME", "tx-lookup-service"),
         consumer_group_id=_get_env(source, "KAFKA_GROUP_ID", "bo-sync-consumer"),
-        ledger_topic=_get_env(source, "LEDGER_TOPIC", "ledger.entry.upserted"),
-        payment_order_topic=_get_env(
-            source, "PAYMENT_ORDER_TOPIC", "payment.order.upserted"
-        ),
+        ledger_topic=effective_ledger_topic,
+        payment_order_topic=effective_payment_order_topic,
+        event_profile_id=event_profile_id,
+        effective_ledger_topic=effective_ledger_topic,
+        effective_payment_order_topic=effective_payment_order_topic,
         dlq_path=_get_env(source, "DLQ_PATH", "./dlq/failed_events.jsonl"),
         dlq_backend=dlq_backend,
         dlq_retention_days=_get_int(source, "DLQ_RETENTION_DAYS", 14),
