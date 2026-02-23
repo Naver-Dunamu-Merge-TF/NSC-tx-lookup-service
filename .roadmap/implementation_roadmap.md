@@ -1,6 +1,6 @@
 # F/E 축 기반 구현 로드맵 (SSOT 파생)
 
-Last updated: 2026-02-23
+Last updated: 2026-02-24
 
 > 본 문서는 SSOT 문서 기준으로 현재 구현 상태를 요약한 파생 로드맵이다.
 > 기존 `Phase 1~11` 참조는 본 개정에서 폐기한다.
@@ -64,10 +64,18 @@ Last updated: 2026-02-23
 - 근거(검증 로그): `.agents/logs/verification/20260224_015153_f3_1_contract_standardization/`
 
 #### 대형 태스크 F3-2: SLO 알림 규칙 운영 적용
-- [ ] `docker/observability/alert_rules.yml`의 규칙을 실제 알림 플랫폼(Azure Monitor) 규칙으로 이식
-- [ ] `api_request_latency_seconds`, `consumer_freshness_seconds`, `db_pool_*`, `db_replication_lag_seconds` 대시보드 연결
-- [ ] 임계치 튜닝(오탐/미탐 점검)과 severity 운영안 확정
-- [ ] 알림 발생 -> 조치 -> 복구까지 운영 증빙 로그 확보
+- [x] `docker/observability/alert_rules.yml`의 규칙을 실제 알림 플랫폼(Azure Monitor) 규칙으로 이식
+- [x] `api_request_latency_seconds`, `consumer_freshness_seconds`, `db_pool_*`, `db_replication_lag_seconds` 대시보드 연결
+- [x] 임계치 튜닝(오탐/미탐 점검)과 severity 운영안 확정
+- [x] 알림 발생 -> 조치 -> 복구까지 운영 증빙 로그 확보
+- 근거(운영 런북): `docs/ops/f3_2_slo_alerts_runbook.md`
+- 근거(결정): `.specs/decision_open_items.md` (`DEC-232`, `DEC-233`, `DEC-234`)
+- 근거(검증 로그): `.agents/logs/verification/20260224_021748_f3_2_slo_alert_ops/`
+- 운영안 요약:
+  - severity는 `DEC-202` baseline을 유지한다(`DataFreshnessHigh`, `DbReplicationLagHigh`만 `critical`).
+  - 임계치 튜닝은 3일 관측 증빙 후 오탐/미탐 근거가 있을 때만 수행한다.
+  - Azure Monitor KQL 기준은 workspace-based `AppMetrics`로 고정한다.
+  - Action Group 채널은 플랫폼팀 관리, 본 저장소는 `ACTION_GROUP_ID` 인터페이스만 관리한다.
 
 #### 대형 태스크 F3-3: 품질 게이트 마감
 - [ ] L2 게이트(`.venv/bin/python -m pytest --cov-fail-under=80`) 정기 통과 상태 확보

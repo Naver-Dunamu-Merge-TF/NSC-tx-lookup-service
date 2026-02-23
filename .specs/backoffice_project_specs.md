@@ -80,6 +80,9 @@
 - **계약 성숙도 기준선(완화)**: `core_violation_rate<=0.1%`, `alias_hit_ratio<=40%`, `version_missing_ratio<=5%` (7일 롤링) — 결정: `DEC-231` (`.specs/decision_open_items.md`)
 - **`updated_at/version` 부재 시 런타임 처리**: `ingested_at` 기준 LWW로 수렴 + `version_missing_cnt` 지표 관측
 - **SLO/보안 기본값**: 데이터 신선도 p95 5초, API p95 200ms, RBAC(`ADMIN_READ`, `ADMIN_AUDIT`) + 감사로그 + PII 최소화
+- **Azure Monitor KQL 기준(F3-2)**: workspace 기반 쿼리는 `AppMetrics` 스키마(`Name`, `Sum`, `Max`, `ItemCount`, `Properties`, `TimeGenerated`)를 기준으로 한다 — 결정: `DEC-232`
+- **F3-2 튜닝 정책**: `DEC-202` 임계치/심각도를 3일 관측 전까지 유지하고, 오탐/미탐 근거가 확인될 때만 조정한다 — 결정: `DEC-233`
+- **알림 채널/활성화 정책(F3-2)**: Action Group 수신 채널은 플랫폼팀 관리값을 사용하고, Scheduled Query Rules는 생성 즉시 `enabled=true`로 운영 적용한다 — 결정: `DEC-234`
 
 ---
 
@@ -139,6 +142,14 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 - consumer lag, DLQ rate
 - end-to-end freshness(p95)
 - pair completion rate / incomplete age
+
+### 8.3 알림 운영 적용 기준(F3-2)
+
+- 기준 문서: `docs/ops/f3_2_slo_alerts_runbook.md`
+- 규칙 소스: `docker/observability/alert_rules.yml` (8개 규칙)
+- 대시보드 연결 증빙은 포털 캡처 대신 `AppMetrics` KQL 결과 로그로 저장한다.
+- severity 정책은 `DataFreshnessHigh`, `DbReplicationLagHigh`만 `critical`, 나머지는 `warning`으로 유지한다(`DEC-202`, `DEC-233`).
+- Action Group 수신 채널(email/Teams/webhook) 값은 플랫폼팀에서 제공받아 `ACTION_GROUP_ID` 인터페이스로만 관리한다(`DEC-234`).
 
 ---
 
@@ -250,6 +261,8 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 
 > F3-1 관련 항목(status 표준, `updated_at/version` 제공률, 계약 성숙도 기준)은
 > `DEC-229`, `DEC-230`, `DEC-231`로 결정 완료.
+> F3-2 알림 운영 적용 기준(AppMetrics, 3일 튜닝, Action Group 인터페이스)은
+> `DEC-232`, `DEC-233`, `DEC-234`로 결정 완료.
 
 - `amount_signed` SSOT(저장 vs 파생) 및 type enum 표준
 - `related_id` 공백/다중 도메인(`related_type`) 처리

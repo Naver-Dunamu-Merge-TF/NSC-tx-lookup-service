@@ -241,6 +241,14 @@
   - pair complete rate
   - pair incomplete age(p95)
 
+### 7.3 F3-2 알림 운영 기준(Dev)
+
+- Azure Monitor 이식 쿼리 기준은 `AppMetrics` 테이블로 고정한다 — 결정: `DEC-232`
+- severity 기본 분포는 `DEC-202`를 유지한다(`DataFreshnessHigh`, `DbReplicationLagHigh`만 `critical`) — 결정: `DEC-233`
+- 임계치/윈도우 튜닝은 3일 관측 증빙 후 근거 기반으로만 수행한다 — 결정: `DEC-233`
+- Action Group 채널(email/Teams/webhook) 값은 플랫폼팀 관리, 서비스 저장소는 `ACTION_GROUP_ID` 인터페이스만 관리한다 — 결정: `DEC-234`
+- 운영 절차/증빙 포맷 SSOT: `docs/ops/f3_2_slo_alerts_runbook.md`
+
 ---
 
 ## 8) 보안/컴플라이언스(최소)
@@ -316,6 +324,8 @@
 
 > F3-1 관련 항목(status 표준, `updated_at/version` 제공률, 계약 성숙도 기준)은
 > `DEC-229`, `DEC-230`, `DEC-231`로 결정 완료.
+> F3-2 알림 운영 적용 기준(AppMetrics, 3일 튜닝, Action Group 인터페이스)은
+> `DEC-232`, `DEC-233`, `DEC-234`로 결정 완료.
 
 - `amount_signed`의 SSOT(업스트림 제공 vs 룰 파생)
 - `related_id`가 비는 케이스/여러 도메인을 참조하는 케이스(`related_type` 필요 여부)

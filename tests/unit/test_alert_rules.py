@@ -107,3 +107,20 @@ def test_contract_core_violation_rule_is_warning() -> None:
     contract_rules = [r for r in rules if r["name"] == "ContractCoreViolationHigh"]
     assert len(contract_rules) == 1
     assert contract_rules[0]["severity"] == "warning"
+
+
+def test_dec_202_severity_distribution() -> None:
+    """DEC-202: only freshness/replication lag are critical."""
+    rules = _load_rules()
+    critical = {r["name"] for r in rules if r["severity"] == "critical"}
+    warning = {r["name"] for r in rules if r["severity"] == "warning"}
+
+    assert critical == {"DataFreshnessHigh", "DbReplicationLagHigh"}
+    assert warning == {
+        "ApiLatencyHigh",
+        "ApiErrorRateHigh",
+        "DlqActivity",
+        "ContractCoreViolationHigh",
+        "DbPoolExhausted",
+        "DbPoolCheckoutSlow",
+    }

@@ -508,6 +508,30 @@
 - 재검토 트리거: 업스트림 계약이 안정화되어 기준 강화(예: core violation 0%)가 가능해지거나, 메시지 볼륨/라벨 정책 변경으로 공식 조정이 필요한 경우.
 - 근거: `src/consumer/metrics.py`, `src/consumer/main.py`, `docker/observability/alert_rules.yml`, `configs/topic_checklist.md`
 
+### DEC-232 Azure Monitor 쿼리 기준 테이블(AppMetrics)
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: F3-2 Azure Monitor 이식 시 쿼리 기준 테이블을 `AppMetrics`로 고정한다. Workspace-based Application Insights 스키마(`Name`, `Sum`, `Max`, `ItemCount`, `Properties`, `TimeGenerated`)를 표준으로 사용한다.
+- 영향: 알림 규칙 KQL과 대시보드 증빙 쿼리는 `customMetrics` 대신 `AppMetrics`를 기준으로 작성/검증한다.
+- 재검토 트리거: Azure Monitor 데이터 모델 변경 또는 App Insights 수집 파이프라인 전환으로 테이블 스키마가 바뀌는 경우.
+- 근거: `docker/observability/alert_rules.yml`, `docs/ops/f3_2_slo_alerts_runbook.md`, `az rest` workspace schema 조회 로그
+
+### DEC-233 F3-2 임계치/심각도 튜닝 정책(3일 관측)
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: 초기 운영은 `DEC-202` baseline을 유지하고, 3일 관측 증빙 후 오탐/미탐 근거가 있을 때만 임계치/윈도우/severity를 조정한다.
+- 영향: F3-2 완료 시점의 severity 분포는 유지된다(`DataFreshnessHigh`, `DbReplicationLagHigh`만 `critical`, 나머지 `warning`).
+- 재검토 트리거: 운영 드릴에서 미탐이 발생하거나, 동일 규칙 비업무성 알람이 일 3회 이상 반복되는 경우.
+- 근거: `docker/observability/alert_rules.yml`, `docs/ops/f3_2_slo_alerts_runbook.md`, `.roadmap/implementation_roadmap.md`
+
+### DEC-234 Action Group 채널/활성화 운영 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: Action Group 수신 채널(email/Teams/webhook)은 플랫폼팀 관리값을 사용한다. 이 저장소는 `ACTION_GROUP_ID` 인터페이스만 고정한다. Scheduled Query Rules는 생성 즉시 `enabled=true`로 운영 적용한다.
+- 영향: 채널 구성 변경은 플랫폼팀에서 처리하고, 본 저장소는 규칙 정의/KQL/증빙 절차에 집중한다.
+- 재검토 트리거: 팀 내 알림 채널 소유권이 애플리케이션 팀으로 이관되거나, 사전 비활성화 정책이 도입되는 경우.
+- 근거: `docs/ops/f3_2_slo_alerts_runbook.md`, `.specs/infra/tx_lookup_azure_resource_inventory.md`
+
 ## DEC-207~217 의존성 작업 묶음
 
 ### 묶음 A - 정책/참조 정합성 선행 ✓ 완료
