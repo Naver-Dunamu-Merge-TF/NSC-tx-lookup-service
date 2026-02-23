@@ -478,6 +478,36 @@
 - 재검토 트리거: 런타임 hot-reload 요구가 생기거나, 환경별 토픽 분기가 profile 대신 별도 라우팅 계층으로 이관되는 경우.
 - 근거: `configs/event_profiles.yaml`, `src/common/config.py`, `src/common/event_profiles.py`, `src/consumer/contract_profile.py`
 
+### DEC-229 `payment_orders.status` 운영 표준 v2 동결
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: `payment_orders.status`는 자유 텍스트 원문 저장 정책을 유지한다. `status_group` 계산은 `src/api/service.py`의 현행 v1 매핑(`SUCCESS/FAIL/IN_PROGRESS/UNKNOWN`)을 그대로 동결해 F3-1 운영 표준 v2로 사용한다.
+- 영향: API/Consumer 런타임 동작은 변경하지 않는다. 표준화는 문서/운영 기준 고정으로 처리하며, 매핑 밖 값은 계속 `UNKNOWN`으로 그룹핑된다.
+- 재검토 트리거: 업스트림 status taxonomy가 단일 표준으로 확정되거나, `UNKNOWN` 비율이 DEC-231 기준을 장기간(7일 초과) 위반하는 경우.
+- 근거: `src/api/service.py`, `tests/unit/test_api_service.py`, `configs/topic_checklist.md`, `.specs/backoffice_project_specs.md`
+
+### DEC-230 `updated_at/version` 제공률 기준(7일 롤링 99%)
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: topic(`ledger`, `payment_order`)별로 `updated_at` 또는 `version` 제공률을 7일 롤링 기준 **99% 이상**으로 고정한다.
+- 측정 공식:
+  - `metadata_coverage_ratio(topic) = 1 - (delta(consumer_version_missing_total{topic}[7d]) / delta(consumer_messages_total{topic,status="success"}[7d]))`
+  - `metadata_coverage_ratio(topic) >= 0.99`를 만족해야 기준 충족으로 판정한다.
+- 영향: 업스트림 계약 성숙도 평가는 `updated_at/version` 존재율을 정량 기준으로 판단한다. 미충족 시 코드 변경보다 계약 보강/재전달을 우선한다.
+- 재검토 트리거: 업스트림이 전 토픽 100% 제공을 보장해 기준 상향이 필요한 경우, 또는 관측 파이프라인 라벨 구조가 변경되는 경우.
+- 근거: `src/consumer/metrics.py`, `src/consumer/main.py`, `configs/topic_checklist.md`, `.specs/backoffice_data_project.md`
+
+### DEC-231 계약 성숙도 지표 기준선(완화 기준)
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: F3-1 계약 성숙도 기준선을 아래 3개 지표로 고정한다(7일 롤링, profile/topic 단위).
+  - `core_violation_rate = delta(consumer_contract_core_violation_total[7d]) / delta(consumer_messages_total{status="success"}[7d]) <= 0.001` (0.1%)
+  - `alias_hit_ratio = delta(consumer_contract_alias_hit_total[7d]) / delta(consumer_contract_profile_messages_total[7d]) <= 0.40` (40%)
+  - `version_missing_ratio = delta(consumer_version_missing_total[7d]) / delta(consumer_messages_total{status="success"}[7d]) <= 0.05` (5%)
+- 영향: 계약 변경 수용 여부를 정량 지표로 판정할 수 있고, F3-1 완료 이후에도 동일 기준으로 회귀 감시가 가능하다.
+- 재검토 트리거: 업스트림 계약이 안정화되어 기준 강화(예: core violation 0%)가 가능해지거나, 메시지 볼륨/라벨 정책 변경으로 공식 조정이 필요한 경우.
+- 근거: `src/consumer/metrics.py`, `src/consumer/main.py`, `docker/observability/alert_rules.yml`, `configs/topic_checklist.md`
+
 ## DEC-207~217 의존성 작업 묶음
 
 ### 묶음 A - 정책/참조 정합성 선행 ✓ 완료

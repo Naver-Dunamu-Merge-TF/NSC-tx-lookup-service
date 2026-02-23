@@ -71,11 +71,14 @@
 ### 3.5 협의 전 가정(임시 결정)
 
 > 아래 항목은 **협의 전까지 기본값**으로 적용한다. 합의 시 업데이트한다.
+> F3-1(2026-02-24)에서 상태/버전 계약 표준화 기준은 `DEC-229`, `DEC-230`, `DEC-231`로 고정됐다.
 
 - **`tx_id` 의미**: 원장 엔트리(행) ID로 고정 → 페어링은 `related_id` 기준(방법 2)
 - **`related_id/related_type`**: 기본은 `payment_orders.order_id`; `related_type` 없으면 조인 성공 시 `PAYMENT_ORDER`, 실패 시 `UNKNOWN`
-- **`status` 매핑**: 원문 상태는 그대로 노출, `status_group(SUCCESS/FAIL/IN_PROGRESS/UNKNOWN)`는 v1 매핑표로 계산한다 — 결정: `DEC-206` (`.specs/decision_open_items.md`)
-- **`updated_at/version` 부재 시**: `ingested_at` 기준 LWW로 수렴 + `version_missing_cnt` 지표 관측
+- **`status` 매핑(v2 운영 표준 동결)**: 원문 상태는 그대로 노출, `status_group(SUCCESS/FAIL/IN_PROGRESS/UNKNOWN)`는 현행 v1 매핑표로 계산한다 — 결정: `DEC-229`, `DEC-206` (`.specs/decision_open_items.md`)
+- **`updated_at/version` 제공률 기준**: topic(`ledger`, `payment_order`)별 7일 롤링 제공률 `>=99%`를 유지한다 — 결정: `DEC-230` (`.specs/decision_open_items.md`)
+- **계약 성숙도 기준선(완화)**: `core_violation_rate<=0.1%`, `alias_hit_ratio<=40%`, `version_missing_ratio<=5%` (7일 롤링) — 결정: `DEC-231` (`.specs/decision_open_items.md`)
+- **`updated_at/version` 부재 시 런타임 처리**: `ingested_at` 기준 LWW로 수렴 + `version_missing_cnt` 지표 관측
 - **SLO/보안 기본값**: 데이터 신선도 p95 5초, API p95 200ms, RBAC(`ADMIN_READ`, `ADMIN_AUDIT`) + 감사로그 + PII 최소화
 
 ---
@@ -245,8 +248,9 @@ Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 
 
 ## 11) 오픈 이슈(협의 필요)
 
-- `payment_orders.status` 허용값 및 “성공/실패/진행” 정의
-- 상태 변경 시각(`updated_at/settled_at/failed_at`) 또는 버전 필드 제공 여부
+> F3-1 관련 항목(status 표준, `updated_at/version` 제공률, 계약 성숙도 기준)은
+> `DEC-229`, `DEC-230`, `DEC-231`로 결정 완료.
+
 - `amount_signed` SSOT(저장 vs 파생) 및 type enum 표준
 - `related_id` 공백/다중 도메인(`related_type`) 처리
 - 환불/취소/정정(역분개) 표기/페어링 규칙

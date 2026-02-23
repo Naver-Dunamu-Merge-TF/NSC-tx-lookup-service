@@ -53,11 +53,15 @@ Last updated: 2026-02-23
 ### F3 — IN PROGRESS
 
 #### 대형 태스크 F3-1: 상태/버전 이벤트 계약 표준화
-- [ ] `payment_orders.status` 운영 표준 집합(v2) 확정 및 `status_group` 매핑표 동결
-- [ ] 토픽별 필수 메타(`updated_at` 또는 `version`) 제공률 기준 합의
-- [ ] 프로파일 매핑(`EVENT_PROFILE_ID`) 운영 규칙과 계약 성숙도 지표(`consumer_contract_*`, `consumer_version_missing_total`) 기준선 고정
-- [ ] `configs/topic_checklist.md` 계약 문구 갱신 및 업스트림 전달 기록
-- [ ] 표준화 결과를 `.specs/backoffice_project_specs.md`/`.specs/backoffice_data_project.md`에 반영
+- [x] `payment_orders.status` 운영 표준 집합(v2) 확정 및 `status_group` 매핑표 동결
+- [x] 토픽별 필수 메타(`updated_at` 또는 `version`) 제공률 기준 합의
+- [x] 프로파일 매핑(`EVENT_PROFILE_ID`) 운영 규칙과 계약 성숙도 지표(`consumer_contract_*`, `consumer_version_missing_total`) 기준선 고정
+- [x] `configs/topic_checklist.md` 계약 문구 갱신 및 업스트림 전달 기록
+- [x] 표준화 결과를 `.specs/backoffice_project_specs.md`/`.specs/backoffice_data_project.md`에 반영
+- 근거(결정): `.specs/decision_open_items.md` (`DEC-229`, `DEC-230`, `DEC-231`)
+- 근거(계약 문구): `configs/topic_checklist.md`
+- 근거(전달 기록): `.specs/upstream_event_contract_handoff_log.md`
+- 근거(검증 로그): `.agents/logs/verification/20260224_015153_f3_1_contract_standardization/`
 
 #### 대형 태스크 F3-2: SLO 알림 규칙 운영 적용
 - [ ] `docker/observability/alert_rules.yml`의 규칙을 실제 알림 플랫폼(Azure Monitor) 규칙으로 이식

@@ -168,6 +168,7 @@
    - out-of-order 이벤트에서 역전 가능(권장하지 않음)
 
 > `payment_orders.updated_at` 컬럼은 존재한다. 다만 초 단위 운영 안정성을 위해 업스트림 이벤트에서 `updated_at` 또는 `version` 제공률을 보장하는 방식을 권장한다.
+> F3-1 기준(DEC-230): topic(`ledger`, `payment_order`)별 `updated_at` 또는 `version` 제공률은 7일 롤링 `>=99%`를 유지한다.
 
 ### 5.3 페어링 처리(방법 2 가정)
 
@@ -232,6 +233,10 @@
 - `ledger_entries` upsert 성공률
 - `payment_orders` upsert 성공률
 - `related_id` null rate
+- `metadata_coverage_ratio(topic) = 1 - (delta(consumer_version_missing_total{topic}[7d]) / delta(consumer_messages_total{topic,status="success"}[7d])) >= 0.99` — 결정: `DEC-230`
+- `core_violation_rate = delta(consumer_contract_core_violation_total[7d]) / delta(consumer_messages_total{status="success"}[7d]) <= 0.001` (0.1%) — 결정: `DEC-231`
+- `alias_hit_ratio = delta(consumer_contract_alias_hit_total[7d]) / delta(consumer_contract_profile_messages_total[7d]) <= 0.40` (40%) — 결정: `DEC-231`
+- `version_missing_ratio = delta(consumer_version_missing_total[7d]) / delta(consumer_messages_total{status="success"}[7d]) <= 0.05` (5%) — 결정: `DEC-231`
 - 페어링 품질
   - pair complete rate
   - pair incomplete age(p95)
@@ -309,7 +314,9 @@
 
 ## 11) 오픈 이슈(협의 필요)
 
-- `payment_orders.status` 허용값 및 “실패” 정의(실패율 지표와 연결)
+> F3-1 관련 항목(status 표준, `updated_at/version` 제공률, 계약 성숙도 기준)은
+> `DEC-229`, `DEC-230`, `DEC-231`로 결정 완료.
+
 - `amount_signed`의 SSOT(업스트림 제공 vs 룰 파생)
 - `related_id`가 비는 케이스/여러 도메인을 참조하는 케이스(`related_type` 필요 여부)
 - 환불/취소/정정(역분개) 이벤트 타입/페어링 확장 규칙

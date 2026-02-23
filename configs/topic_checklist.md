@@ -128,3 +128,30 @@ Consumer는 아래 alias를 자동 인식한다. 업스트림 기존 필드명�
 
 > 매핑에 없는 값도 Consumer 처리에 문제없음. `status` 원문은 항상 보존됨.
 > 새 값을 추가하려면 `src/api/service.py`의 `_resolve_status_group()`만 수정.
+
+## F3-1 운영 표준 (2026-02-24)
+
+### `payment_orders.status` 표준 v2 (동결)
+
+- `status`는 업스트림 원문 자유 텍스트를 허용한다.
+- `status_group` 계산은 본 문서의 v1 매핑표를 그대로 사용한다(코드: `src/api/service.py`).
+- 본 단계(F3-1)에서는 신규 매핑값을 추가하지 않는다.
+- 매핑 밖 값은 `status_group=UNKNOWN`으로 그룹핑하고 지표 기반으로 재검토한다(DEC-229, DEC-231).
+
+### `updated_at/version` 제공률 기준 (7일 롤링)
+
+- logical topic별(`ledger`, `payment_order`) `updated_at` 또는 `version` 제공률은 99% 이상이어야 한다(DEC-230).
+- 측정 공식:
+  - `metadata_coverage_ratio(topic) = 1 - (delta(consumer_version_missing_total{topic}[7d]) / delta(consumer_messages_total{topic,status="success"}[7d]))`
+  - 통과 기준: `metadata_coverage_ratio(topic) >= 0.99`
+
+### 계약 성숙도 지표 기준선 (완화 기준)
+
+- `core_violation_rate = delta(consumer_contract_core_violation_total[7d]) / delta(consumer_messages_total{status="success"}[7d]) <= 0.001` (0.1%)
+- `alias_hit_ratio = delta(consumer_contract_alias_hit_total[7d]) / delta(consumer_contract_profile_messages_total[7d]) <= 0.40` (40%)
+- `version_missing_ratio = delta(consumer_version_missing_total[7d]) / delta(consumer_messages_total{status="success"}[7d]) <= 0.05` (5%)
+- 기준선은 profile/topic 단위로 관측하며, 미충족 시 코드 변경보다 계약 보강/재전달을 우선한다(DEC-231).
+
+### 업스트림 전달 이력
+
+- 전달 기록 SSOT: `.specs/upstream_event_contract_handoff_log.md`
