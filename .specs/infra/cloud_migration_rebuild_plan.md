@@ -180,3 +180,4 @@ RG 공유 리소스 (인프라팀 소유, 이 서비스가 활용):
 - `.roadmap/implementation_roadmap.md` (Phase 8)
 - `.specs/backoffice_project_specs.md` (10.3 Azure 배포)
 - `.specs/backoffice_data_project.md` (동기화/재처리 원칙)
+- `.specs/infra/tx_lookup_azure_resource_inventory.md` (실사용 리소스 인벤토리)
