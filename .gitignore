@@ -209,3 +209,4 @@ __marimo__/
 .ref/
 .agents/logs/verification/
 .env/
+.secrets/
