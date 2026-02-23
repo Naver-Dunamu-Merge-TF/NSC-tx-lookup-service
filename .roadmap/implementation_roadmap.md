@@ -1,6 +1,6 @@
 # F/E 축 기반 구현 로드맵 (SSOT 파생)
 
-Last updated: 2026-02-12
+Last updated: 2026-02-23
 
 > 본 문서는 SSOT 문서 기준으로 현재 구현 상태를 요약한 파생 로드맵이다.
 > 기존 `Phase 1~11` 참조는 본 개정에서 폐기한다.
@@ -19,8 +19,10 @@ Last updated: 2026-02-12
 ### 1.2 판정 규칙
 - 상태는 `COMPLETE`, `IN PROGRESS`, `NOT STARTED` 3단계로만 표기한다.
 - 상태 근거는 SSOT 문서 + 코드/테스트 증빙 + DEC 결과를 우선 적용한다.
-- 기준 시점은 워킹트리 문서 상태(2026-02-12)다.
+- 기준 시점은 워킹트리 문서 상태(2026-02-23)다.
 - 일정 날짜/스프린트는 두지 않고, 게이트(진입/완료 조건) 기준으로만 관리한다.
+- `DEC-225` 기준: 문서-실자원 드리프트는 F-track 개발의 차단 사유가 아니며, 정렬은 E2(Stage B) 게이트에서 수행한다.
+- AKS/클러스터 내 검증은 F3 품질 게이트에 포함하며, E2 진입 전에 최소 1회 선행 완료를 요구한다.
 
 ## 2) 상태 스냅샷
 
@@ -53,6 +55,7 @@ Last updated: 2026-02-12
 #### 대형 태스크 F3-1: 상태/버전 이벤트 계약 표준화
 - [ ] `payment_orders.status` 운영 표준 집합(v2) 확정 및 `status_group` 매핑표 동결
 - [ ] 토픽별 필수 메타(`updated_at` 또는 `version`) 제공률 기준 합의
+- [ ] 프로파일 매핑(`EVENT_PROFILE_ID`) 운영 규칙과 계약 성숙도 지표(`consumer_contract_*`, `consumer_version_missing_total`) 기준선 고정
 - [ ] `configs/topic_checklist.md` 계약 문구 갱신 및 업스트림 전달 기록
 - [ ] 표준화 결과를 `.specs/backoffice_project_specs.md`/`.specs/backoffice_data_project.md`에 반영
 
@@ -64,15 +67,25 @@ Last updated: 2026-02-12
 
 #### 대형 태스크 F3-3: 품질 게이트 마감
 - [ ] L2 게이트(`.venv/bin/python -m pytest --cov-fail-under=80`) 정기 통과 상태 확보
-- [ ] 페어링/상태 변경 관련 L3 스모크 기준 시나리오 확정
+- [ ] 페어링/상태 변경 관련 L3 스모크 기준 시나리오 확정 (AKS/클러스터 내 실행 포함)
+- [ ] AKS/클러스터 내 검증 수행 및 증빙 확보 (E2 진입 전 최소 1회, 이후 정기 회귀)
 - [ ] F3 완료 판정 체크리스트(계약, 알림, 테스트) 문서화
+
+#### 대형 태스크 F3-4: AKS 조기 검증 트랙
+- [ ] AKS 상태 안정화 확인(`provisioningState=Succeeded`) 및 `txlookup` namespace 준비
+- [ ] API/Consumer 이미지 pull + 기동 스모크 (DB/Event Hubs 연결 확인)
+- [ ] 클러스터 내 `GET /admin/tx/{tx_id}` 200/404 스모크 + consumer lag/freshness 점검
+- [ ] 실패 케이스 분류(runbook)와 재시도 기준 문서화
 
 ### E2 — NOT STARTED
 
 #### 대형 태스크 E2-1: Cloud-Secure 리소스 준비(보안형)
 - [ ] 인프라팀에 서비스 전용/공유 리소스 요청서 제출(PostgreSQL 전용 + AKS/ACR/Key Vault 공유 모델)
+- [ ] AKS 클러스터 배포 경로(네임스페이스, 권한, 네트워크) 선행 검증 결과 반영
 - [ ] 네트워크 요구사항(Private Endpoint/VNet/Firewall) 상세 명세 확정
 - [ ] 리소스 네이밍/태그/소유권 검증 체크리스트 작성
+- [ ] 문서 기준 대비 실제 Azure 리소스 드리프트(public/private, access rule, provisioning state) 목록화
+- [ ] 드리프트 정렬 적용 후 `az` 재검증 로그를 `.agents/logs/verification/`에 증빙 저장
 
 #### 대형 태스크 E2-2: 시크릿/권한 전환
 - [ ] SAS/env 기반 전달에서 Key Vault + Managed Identity 방식으로 전환 설계
@@ -88,6 +101,7 @@ Last updated: 2026-02-12
 - [ ] 보안 통제 체크(네트워크/시크릿/권한) 통과 증빙 확보
 - [ ] 데이터 신선도/API 지연 SLO 재검증 결과 확보
 - [ ] E2 완료 승인 레코드(결재/리뷰 로그) 저장
+- [ ] `DEC-225` 드리프트 정렬 완료 확인(체크리스트 + 검증 로그 링크)
 
 ### E3 — NOT STARTED
 
@@ -115,7 +129,7 @@ Last updated: 2026-02-12
 
 | Stage | 최소 완료 게이트 |
 | --- | --- |
-| F3 (IN PROGRESS) | 상태/버전 이벤트 계약 표준화 완료 + 알림 규칙 운영 적용 증빙 + L2/L3 검증 체계 고정 |
+| F3 (IN PROGRESS) | 상태/버전 이벤트 계약 표준화 완료 + 알림 규칙 운영 적용 증빙 + L2/L3(클러스터 내) 검증 체계 고정 + AKS 조기 검증 트랙 완료 |
 | E2 (NOT STARTED) | Cloud-Secure 리소스/보안 통제 준비 완료 + 재적재/스모크 리허설 완료 + 컷오버/롤백 기준 승인 |
 | E3 (NOT STARTED) | CI/CD 자동화 파이프라인 동작 + 운영 복구 체계 문서/훈련 완료 + 계약 테스트 CI 상시화 |
 
@@ -128,3 +142,4 @@ Last updated: 2026-02-12
   - `.agents/logs/verification/20260212_fe_roadmap_refresh_structure_check.log`
   - `.agents/logs/verification/20260212_fe_roadmap_enhance_l0_py_compile.log`
   - `.agents/logs/verification/20260212_fe_roadmap_enhance_structure_check.log`
+  - `.agents/logs/verification/20260224_000257_roadmap_aks_reenable_l0_py_compile.log`

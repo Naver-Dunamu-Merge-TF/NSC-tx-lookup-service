@@ -1,7 +1,7 @@
 # 결정 필요 항목 목록 (Open Decisions)
 
 작성일: 2026-02-06
-업데이트: 2026-02-12
+업데이트: 2026-02-24
 
 ## 목적
 
@@ -443,6 +443,40 @@
 - 근거: 금융 원장(ledger)은 삭제 불가가 원칙이며, 취소/수정은 역분개(reversal) 이벤트로 처리하는 것이 복식부기의 기본 설계다. 현재 코드는 upsert 전용(`src/db/upsert.py`)이며, delete 경로를 추가하면 페어링 상태 연쇄 업데이트, 감사로그 정합성 등 복잡도가 크게 증가한다. 테스트 데이터 정리 등 운영 목적의 삭제가 필요하면 DB 직접 조작(운영 스크립트)으로 처리한다.
 - 영향: 업스트림은 삭제 이벤트를 발행할 필요가 없다. 취소된 거래도 Backoffice DB에 남으며, `status_group=FAIL`로 조회된다. 관리자는 취소된 거래의 이력을 추적할 수 있다.
 - 재검토 트리거: GDPR 등 규제로 개인정보 포함 거래의 물리적 삭제가 요구되는 경우, 또는 운영 요구에 의해 soft delete 상태 관리가 필요해지는 경우.
+
+### DEC-225 개발 진행 정책 - 문서/실자원 드리프트 비차단
+
+- 상태: **결정됨(2026-02-23)**
+- 결정: 문서 기준 설정과 실제 Azure 리소스 설정 사이에 드리프트가 있더라도, 현재 단계에서는 F-track 개발을 차단하지 않는다. 드리프트 정렬은 E2(Stage B Cloud-Secure) 게이트에서 일괄 처리한다.
+- 근거: 2026-02-23 `az` CLI 실검증에서 리소스 존재는 확인되었고 일부 설정 드리프트가 식별되었다. 팀 결정으로 개발 진행 우선 정책을 확정했다.
+- 영향: 단기적으로 API/Consumer/DB 개발과 검증은 계속 진행한다. 단, E2 게이트 진입 전에는 네트워크/보안/권한 드리프트 정렬 증빙이 필수다.
+- 재검토 트리거: 보안 감사/배포 승인 정책이 "드리프트 즉시 해소"로 변경되거나, 드리프트가 기능/성능 검증을 직접 차단하는 경우.
+- 근거: `.specs/Infra_Manual.md`, `.roadmap/implementation_roadmap.md`, `.agents/logs/verification/azure_resource_validation_20260223_222811.log`
+
+### DEC-226 검증 우선순위 - AKS/클러스터 내 검증 후순위 이연
+
+- 상태: **결정됨(2026-02-23)**
+- 결정: AKS/클러스터 내 검증은 현재 개발 루프에서 후순위로 이연한다. 다만 문서 최종화 단계 이전에 최소 1회 선행 수행하고 증빙 로그를 남긴다.
+- 근거: 현재 AKS 상태(`provisioningState=Canceled`)와 최근 Activity Log 상 충돌/취소 이력으로 인해 즉시 in-cluster 검증 안정성이 낮다.
+- 영향: 당장 F-track 개발과 로컬/DB 중심 검증은 계속 진행한다. AKS/클러스터 내 검증은 문서 최종화 직전 게이트로 이동한다.
+- 재검토 트리거: AKS 상태가 `Succeeded`로 안정화되거나, 클러스터 내 검증 없이는 기능 검증이 불가능한 변경이 포함되는 경우.
+- 근거: `.roadmap/implementation_roadmap.md`, `.specs/architecture_guide.md`, `.specs/infra/tx_lookup_azure_resource_inventory.md`, `.agents/logs/verification/aks_nsc_aks_dev_status_check_20260223_225950.log`
+
+### DEC-227 Compat Core 운영 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: Consumer는 `Compat Core`를 기본 정책으로 사용한다. `core_required` 필드 누락과 alias 충돌(동일 의미 필드의 상이한 non-empty 값)은 `contract_core_violation`으로 DLQ 격리하고, 그 외 계약 변형은 alias/optional 처리로 흡수한다.
+- 영향: 업스트림 계약이 수렴되지 않은 기간에도 Consumer를 중단하지 않고 처리량을 유지한다. 대신 위반 유형은 메트릭/로그에서 분리 관측해 점진적으로 수렴한다.
+- 재검토 트리거: 업스트림이 단일 고정 계약을 공식 배포하고, alias/optional 흡수층을 축소하기로 합의될 때.
+- 근거: `docs/plans/2026-02-24-event-contract-risk-absorption-plan.md`, `src/consumer/contract_normalizer.py`, `src/consumer/main.py`
+
+### DEC-228 Profile Mapping + 설정 우선순위 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정: `EVENT_PROFILE_ID + configs/event_profiles.yaml`로 logical topic/alias/core_required를 선택한다. 토픽 최종값 우선순위는 키별 `env(LEDGER_TOPIC/PAYMENT_ORDER_TOPIC) > profile > default`이며, 두 logical topic이 동일 값이면 시작 시 fail-fast 한다.
+- 영향: 동일 바이너리로 환경별 토픽 계약 차이를 운영 변수만으로 흡수할 수 있다. `EVENT_PROFILE_ID`는 프로세스 시작 시 1회 로드되며, 변경 반영은 재시작으로만 처리한다.
+- 재검토 트리거: 런타임 hot-reload 요구가 생기거나, 환경별 토픽 분기가 profile 대신 별도 라우팅 계층으로 이관되는 경우.
+- 근거: `configs/event_profiles.yaml`, `src/common/config.py`, `src/common/event_profiles.py`, `src/consumer/contract_profile.py`
 
 ## DEC-207~217 의존성 작업 묶음
 

@@ -75,6 +75,18 @@ rules:
       | summarize dlq_count = sum(value) by bin(timestamp, 5m)
       | where dlq_count > 0
 
+  - name: ContractCoreViolationHigh
+    metric: consumer_contract_core_violation_total
+    condition: "> 0"
+    window: 5m
+    severity: warning
+    description: "Contract core violations detected - review profile aliases/core_required"
+    kql: |
+      customMetrics
+      | where name == "consumer_contract_core_violation_total"
+      | summarize violation_count = sum(value) by bin(timestamp, 5m)
+      | where violation_count > 0
+
   # --- DB connection pool ---
 
   - name: DbPoolExhausted

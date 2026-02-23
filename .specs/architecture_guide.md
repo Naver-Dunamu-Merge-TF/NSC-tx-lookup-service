@@ -4,6 +4,8 @@
 
 ---
 
+인프라 리소스 이름/용도/설정 매핑은 `.specs/infra/tx_lookup_azure_resource_inventory.md`를 우선 참조한다.
+
 ## 1. 전체 구조 한눈에 보기
 
 ### 서비스 범위
@@ -16,6 +18,14 @@ OLTP DB → Kafka/Event Hubs → [Sync Consumer] → Backoffice DB → [Admin AP
 
 - **In-scope**: Kafka 이벤트 수신 → Backoffice DB 동기화 → Admin 조회 API 제공
 - **Out-of-scope**: 이벤트 발행(업스트림 서비스 소유), Kafka 인프라(인프라팀 소유), 고객-facing API
+
+### 개발 진행 원칙 (2026-02-23)
+
+- 문서 기준 설정과 실제 Azure 리소스 설정의 드리프트는 현재 단계에서 **개발 차단 사유가 아니다**.
+- 기능 개발(F-track)과 테스트는 SSOT 문서 및 로컬 검증 기준으로 우선 진행한다.
+- 실제 리소스 정렬(네트워크/보안/권한)은 E2(Stage B Cloud-Secure) 게이트에서 일괄 처리한다.
+- AKS/클러스터 내 검증은 현재 후순위로 이연하되, 문서 최종화 전에 선행 수행한다.
+- 추적 기준 결정은 `.specs/decision_open_items.md`의 `DEC-225`를 따른다.
 
 ### 컴포넌트 2개 요약
 
@@ -75,7 +85,7 @@ ledger_entries.related_id ──→ payment_orders.order_id
 
 ### 이벤트 계약
 
-2개 토픽을 구독한다:
+`EVENT_PROFILE_ID`에 따라 logical topic의 실제 매핑이 결정된다.
 
 | 토픽 | 이벤트 타입 | 필수 필드 |
 |------|-----------|----------|
@@ -84,14 +94,25 @@ ledger_entries.related_id ──→ payment_orders.order_id
 
 **업스트림 결합**: JSON 스키마에만 결합. 업스트림이 Flink/Debezium/직접 발행, 뭘 쓰든 같은 JSON 구조로 같은 토픽에 보내면 영향 없음.
 
+### Compat Core + Profile Mapping
+
+- 기본 정책은 `Compat Core`다.
+- 프로파일(`configs/event_profiles.yaml`)이 alias/core_required/topic 매핑을 정의한다.
+- 토픽 최종 우선순위는 키별 `env(LEDGER_TOPIC/PAYMENT_ORDER_TOPIC) > profile > default`.
+- alias 해석은 선언 순서대로 수행한다.
+- 같은 alias 그룹에서 상이한 non-empty 값이 동시에 오면 `contract_core_violation`으로 DLQ 격리한다.
+
 ### 처리 흐름
 
 ```
 Kafka 메시지 수신
   ↓
-events.py: JSON → 이벤트 객체 (LedgerEntryUpserted / PaymentOrderUpserted)
-  - 필수 필드 검증, 타입 변환
-  - 실패 시 → EventValidationError
+contract_normalizer.py: profile 기반 정규화
+  - alias를 canonical 키로 변환
+  - core_required 누락/alias 충돌 검증
+  - 실패 시 → EventValidationError (DLQ error 분류 포함)
+  ↓
+events.py: canonical payload → 이벤트 객체 (LedgerEntryUpserted / PaymentOrderUpserted)
   ↓
 processor.py: 이벤트 → DB upsert 오케스트레이션
   - upsert_ledger_entry() → latest_wins_upsert → bo.ledger_entries
@@ -104,6 +125,8 @@ pairing.py: (ledger만) 페어링 계산
 main.py: commit + 메트릭 기록
   - 성공 → consumer.commit(msg), consumer_messages_total{status=success}
   - 실패 → DLQ 저장 + commit (poison pill 방지)
+  - 계약 드리프트 메트릭: consumer_contract_alias_hit_total,
+    consumer_contract_core_violation_total, consumer_contract_profile_messages_total
 ```
 
 ### 멱등 upsert (latest-wins)
@@ -237,10 +260,17 @@ actor_id: oid 우선, 없으면 sub (Entra ID 기준)
 | 카테고리 | 주요 변수 |
 |---------|----------|
 | DB | `DATABASE_URL`, `DB_POOL_SIZE`, `DB_SLOW_QUERY_MS` |
-| Kafka | `KAFKA_BOOTSTRAP_SERVERS`, `LEDGER_TOPIC`, `PAYMENT_ORDER_TOPIC`, `CONSUMER_GROUP_ID` |
+| Kafka | `KAFKA_BROKERS`, `KAFKA_GROUP_ID`, `EVENT_PROFILE_ID`, `LEDGER_TOPIC`, `PAYMENT_ORDER_TOPIC` |
 | 인증 | `AUTH_MODE`, `AUTH_ISSUER`, `AUTH_JWKS_URL`, `AUTH_AUDIENCE` |
 | DLQ | `DLQ_BACKEND`, `DLQ_PATH`, `DLQ_RETENTION_DAYS` |
 | 관측 | `APPLICATIONINSIGHTS_CONNECTION_STRING` |
+
+토픽 결정 규칙:
+1. `EVENT_PROFILE_ID`로 `configs/event_profiles.yaml`에서 logical topic 선택
+2. 키별 override 적용: `LEDGER_TOPIC`, `PAYMENT_ORDER_TOPIC`
+3. 최종 우선순위: `env > profile > default`
+4. 두 logical topic이 동일 값이면 시작 실패(fail-fast)
+5. `EVENT_PROFILE_ID` 변경은 재시작으로만 반영(런타임 hot-reload 비대상)
 
 ### 관측성
 
@@ -255,7 +285,7 @@ OpenTelemetry → Azure Monitor (Application Insights)
 | 영역 | 메트릭 |
 |------|--------|
 | API | `api_request_latency_seconds`, `api_requests_total`, `api_requests_inflight` |
-| Consumer | `consumer_messages_total`, `consumer_event_lag_seconds`, `consumer_kafka_lag`, `consumer_freshness_seconds`, `consumer_dlq_total` |
+| Consumer | `consumer_messages_total`, `consumer_event_lag_seconds`, `consumer_kafka_lag`, `consumer_freshness_seconds`, `consumer_dlq_total`, `consumer_contract_alias_hit_total`, `consumer_contract_core_violation_total`, `consumer_contract_profile_messages_total` |
 | Pairing | `pairing_total`, `pairing_incomplete_total`, `pairing_incomplete_age_seconds`, `pairing_skipped_non_payment_order_total` |
 | DB | `db_query_latency_seconds`, `db_pool_size`, `db_pool_checked_out`, `db_pool_checkout_latency_seconds`, `db_replication_lag_seconds` |
 
@@ -267,6 +297,7 @@ OpenTelemetry → Azure Monitor (Application Insights)
 | `ApiErrorRateHigh` | WARNING | 4xx+5xx > 2% / 5m |
 | `DataFreshnessHigh` | CRITICAL | freshness > 5s / 5m |
 | `DlqActivity` | WARNING | DLQ 건수 > 0 / 5m |
+| `ContractCoreViolationHigh` | WARNING | contract_core_violation > 0 / 5m |
 | `DbPoolExhausted` | WARNING | pool 고갈 |
 | `DbReplicationLagHigh` | CRITICAL | lag > 10s / 5m |
 
@@ -329,6 +360,22 @@ GET /admin/tx/TX-P-001
 
 **페어링 역전 방지**: RECEIVE가 먼저 처리된 후 일부 데이터만 가진 이벤트(PAYMENT만)가 재처리 → `should_update_pair(true, false) → false` → 업데이트 차단 → COMPLETE 상태 보존.
 
+### Pre-AKS 운영 절차 (EVENT_PROFILE_ID=nsc-dev-v1)
+
+1. dev 환경 적용
+- Consumer 배포 환경변수에 `EVENT_PROFILE_ID=nsc-dev-v1` 설정
+- `LEDGER_TOPIC`/`PAYMENT_ORDER_TOPIC` override가 필요 없으면 비워두고 profile topic(`cdc-events`, `order-events`)을 그대로 사용
+- 프로파일 변경 반영은 재시작으로만 수행
+
+2. 3일 관측 기준(고정)
+- `contract_core_violation_rate`
+- `alias_hit_ratio`
+- `consumer_version_missing_total`
+
+3. 기준 미달 시 조치 경로
+- `profile alias 추가` → `replay/backfill` → `재검증`
+- 재검증에서도 미달이면 profile/core_required를 재조정하고 동일 절차 반복
+
 ---
 
 ## 부록: 모듈 역할 요약
@@ -349,11 +396,13 @@ GET /admin/tx/TX-P-001
 | 파일 | 역할 |
 |------|------|
 | `main.py` | Kafka consumer 루프 + CLI (consume / backfill) |
+| `contract_profile.py` | 프로파일(YAML) 기반 topic/alias/core_required 타입 로딩 |
+| `contract_normalizer.py` | alias 정규화 + core_required/충돌 검증 (Compat Core) |
 | `events.py` | JSON → 이벤트 객체 변환 + 필수 필드 검증 |
 | `processor.py` | 이벤트 → DB upsert 오케스트레이션 + 페어링 트리거 |
 | `pairing.py` | PAYMENT/RECEIVE 매칭 + 회귀 방지 |
 | `dlq.py` | DLQ 저장 (DB/파일) + 보관기간 정리 |
-| `metrics.py` | Consumer 전용 메트릭 (freshness, lag, version_missing) |
+| `metrics.py` | Consumer 전용 메트릭 (freshness, lag, version_missing, contract drift) |
 
 ### `src/db/`
 
@@ -370,6 +419,7 @@ GET /admin/tx/TX-P-001
 | 파일 | 역할 |
 |------|------|
 | `config.py` | 환경변수 → `Settings` dataclass |
+| `event_profiles.py` | `configs/event_profiles.yaml` 로더 + 스키마 검증 |
 | `kafka.py` | Kafka 클라이언트 공통 설정 (SASL/SSL 포함) |
 | `logging.py` | 구조화된 로깅 설정 |
 | `metrics.py` | OTel Meter + 전역 메트릭 정의 |

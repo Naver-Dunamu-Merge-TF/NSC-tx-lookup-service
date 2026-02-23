@@ -11,7 +11,35 @@
 - **멱등성**: Consumer는 at-least-once + 멱등 upsert. 중복 발행해도 결과 동일.
 - **순서**: `updated_at` 또는 `version` 기준 latest-wins. 메시지 순서 보장 불필요(권장은 키 기준 파티셔닝).
 
-## Required topics
+## Core Required (Compat Core)
+
+Compat Core 모드에서는 아래 필드가 누락되면 DLQ로 격리한다.
+
+1) Ledger (`ledger` logical topic)
+- `tx_id`
+- `wallet_id`
+- `entry_type` (alias: `type`)
+- `amount`
+- `event_time_or_alias` (`event_time` 또는 alias `source_created_at`, `created_at`)
+
+2) Payment order (`payment_order` logical topic)
+- `order_id`
+- `amount`
+- `status`
+- `created_at`
+
+## Profile-specific topic mapping
+
+`EVENT_PROFILE_ID`에 따라 logical topic과 실제 Kafka topic 매핑이 달라진다.
+
+| profile_id | ledger | payment_order |
+|-----------|--------|---------------|
+| `canonical-v1` | `ledger.entry.upserted` | `payment.order.upserted` |
+| `nsc-dev-v1` | `cdc-events` | `order-events` |
+
+우선순위는 키별 `env(LEDGER_TOPIC/PAYMENT_ORDER_TOPIC) > profile > default`다.
+
+## Required topics (profile default: canonical-v1)
 
 1) Ledger entry upsert topic (default: `ledger.entry.upserted`)
 
@@ -100,4 +128,3 @@ Consumer는 아래 alias를 자동 인식한다. 업스트림 기존 필드명�
 
 > 매핑에 없는 값도 Consumer 처리에 문제없음. `status` 원문은 항상 보존됨.
 > 새 값을 추가하려면 `src/api/service.py`의 `_resolve_status_group()`만 수정.
-

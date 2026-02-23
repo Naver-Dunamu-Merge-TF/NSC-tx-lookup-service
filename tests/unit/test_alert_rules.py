@@ -28,6 +28,9 @@ KNOWN_METRICS = {
     "consumer_event_lag_seconds",
     "consumer_dlq_total",
     "consumer_version_missing_total",
+    "consumer_contract_alias_hit_total",
+    "consumer_contract_core_violation_total",
+    "consumer_contract_profile_messages_total",
     "pairing_total",
     "pairing_incomplete_total",
     "pairing_incomplete_age_seconds",
@@ -97,3 +100,10 @@ def test_db_replication_lag_rule_is_critical() -> None:
     lag_rules = [r for r in rules if r["name"] == "DbReplicationLagHigh"]
     assert len(lag_rules) == 1
     assert lag_rules[0]["severity"] == "critical"
+
+
+def test_contract_core_violation_rule_is_warning() -> None:
+    rules = _load_rules()
+    contract_rules = [r for r in rules if r["name"] == "ContractCoreViolationHigh"]
+    assert len(contract_rules) == 1
+    assert contract_rules[0]["severity"] == "warning"
