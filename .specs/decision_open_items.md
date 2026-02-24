@@ -577,6 +577,142 @@
   - `docs/ops/f3_4_validation_evidence_template.md`
   - `.roadmap/implementation_roadmap.md`
 
+### DEC-238 F3-4 Consumer 런타임 이미지/환경 fallback 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - F3-4 runtime closeout 시 `txlookup/consumer` ACR repository/tag가 없으면 `txlookup/api:<same-tag>` 이미지를 consumer에 재사용한다.
+  - 이때 consumer 엔트리포인트는 반드시 `python -m src.consumer.main consume`로 고정한다.
+  - `txlookup-api-env`에 Kafka/Event Hubs 설정이 없으면 `txlookup-consumer-kafka-env` 같은 consumer 전용 secret을 추가 주입한다.
+  - 위 fallback은 F3-4 closeout unblock 목적의 운영 우회 경로이며, 이미지 리포지토리 계약 정렬(`txlookup/consumer`)은 후속 액션으로 유지한다.
+- 영향:
+  - consumer startup 검증이 image repository drift로 즉시 차단되는 위험을 낮춘다.
+  - API와 Consumer 런타임 분리(이미지 경로) 계약 드리프트가 드러나므로, E2 진입 전 정렬 작업이 필요하다.
+- 재검토 트리거:
+  - `txlookup/consumer` repository/tag 계약이 복구되거나 배포 파이프라인이 consumer 전용 이미지를 다시 보장하는 경우.
+- 근거:
+  - `.agents/logs/verification/20260224_110000_f3_4_runtime_recovery/02_consumer_rollout.log`
+  - `.agents/logs/verification/20260224_110000_f3_4_runtime_recovery/02_consumer_secret_keys.log`
+  - `docs/ops/f3_4_aks_early_validation_runbook.md`
+
+### DEC-239 F3-4 metrics 수집 경로 실패 분류(계측 vs 수집망) 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - AppMetrics 쿼리 경로가 정상인데 `consumer_*` 행이 비어 있을 때는 먼저 수집 경로를 2단계로 분리 진단한다.
+    - 1단계(계측): consumer env에 `APPLICATIONINSIGHTS_CONNECTION_STRING` 존재 + startup 로그 `Azure Monitor OpenTelemetry configured` 확인
+    - 2단계(수집망): pod 내부에서 Application Insights ingestion endpoint(443) TLS handshake 확인
+  - 1단계 실패(OTel 미활성)는 설정 누락으로 간주하고 `STARTUP_FAILED`로 분류한다.
+  - 1단계 통과 + 2단계 실패(`SSLEOFError`/`UNEXPECTED_EOF_WHILE_READING`)는 AKS pod egress/TLS 경로 이슈로 간주하고 `ENVIRONMENT_BLOCKED`로 분류한다.
+  - `METRIC_FAILED`는 1/2단계 모두 통과했는데도 목표 메트릭 행이 기준 시간창에 비어 있는 경우에만 사용한다.
+- 영향:
+  - F3-4 재시도 시 설정 결함과 네트워크 결함의 책임 경계가 명확해진다.
+  - Roadmap 상태 메모의 failure class 일관성이 유지된다.
+- 재검토 트리거:
+  - AKS egress 정책 또는 Azure Monitor ingestion endpoint 정책 변경 시.
+  - OTel exporter 라이브러리 버전 변경으로 TLS 동작이 바뀌는 경우.
+- 근거:
+  - `.agents/logs/verification/20260224_113527_f3_4_metric_recovery/03_postcheck_consumer_otel.log`
+  - `.agents/logs/verification/20260224_113527_f3_4_metric_recovery/15_consumer_exporter_ssl_eof.log`
+  - `.agents/logs/verification/20260224_113527_f3_4_metric_recovery/16_ai_endpoint_connectivity.log`
+  - `.agents/logs/verification/20260224_113527_f3_4_metric_recovery/17_jumpbox_host_ssl_check.log`
+  - `.agents/logs/verification/20260224_113527_f3_4_metric_recovery/18_api_pod_ssl_check.log`
+
+### DEC-240 F3-4 인프라 선조치(telemetry egress allowlist) 운영 결정
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - F3-4 closeout 차단 해소를 위해 Application subnet(`10.0.2.0/23`) 기준 Firewall application rule `allow-appinsights-telemetry`를 선조치로 추가한다.
+  - 허용 FQDN은 아래 3개로 고정한다.
+    - `dc.services.visualstudio.com`
+    - `*.in.applicationinsights.azure.com`
+    - `*.livediagnostics.monitor.azure.com`
+  - 선조치 후 인프라팀에는 후보고를 수행하고, 동일 규칙을 IaC 관리 경로로 정식 이관한다.
+- 영향:
+  - AKS pod의 AppInsights 수집 경로 차단(`No rule matched`)이 해소되어 AppMetrics 유입이 재개된다.
+  - F3-4 실패 분류는 `ENVIRONMENT_BLOCKED`에서 해제되며, 잔여 이슈는 애플리케이션 계측 품질(`consumer_kafka_lag`)로 한정된다.
+- 재검토 트리거:
+  - AppInsights exporter endpoint 정책 변경 또는 Firewall 정책 리팩토링 시.
+  - IaC 정식 반영 완료 후 rule name/source/FQDN 범위가 변경되는 경우.
+- 근거:
+  - `.agents/logs/verification/20260224_143303_f3_4_infra_preaction/06_firewall_appinsights_denies.log`
+  - `.agents/logs/verification/20260224_143303_f3_4_infra_preaction/09_firewall_preaction_add_rule.log`
+  - `.agents/logs/verification/20260224_143303_f3_4_infra_preaction/13_postchange_firewall_actions_5m_detail.log`
+  - `.agents/logs/verification/20260224_143303_f3_4_infra_preaction/14_postchange_consumer_tls_checks_retry.log`
+  - `.agents/logs/verification/20260224_143303_f3_4_infra_preaction/17_postchange_appmetrics_raw_30m.log`
+  - `.agents/logs/verification/20260224_143303_f3_4_infra_preaction/21_postchange_consumer_metric_inventory.log`
+
+### DEC-241 `consumer_kafka_lag` watermark 미가용 fallback 계측 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - Kafka lag watermark 조회는 `TopicPartition` 기반 호출로 고정한다(`get_watermark_offsets(TopicPartition(...), ...)`).
+  - watermark 조회가 `None` 또는 예외를 반환하면 해당 poll cycle의 `consumer_kafka_lag`를 `0`으로 기록한다.
+  - 운영 해석 규칙: `consumer_kafka_lag=0`이 지속되더라도 backlog가 알려진 상황이면 broker/watermark capability 진단을 병행한다.
+- 영향:
+  - Event Hubs Kafka 경로에서 watermark 조회 미가용 시에도 `consumer_kafka_lag` 시계열이 끊기지 않는다.
+  - F3-4 closeout에서 `METRIC_FAILED`(lag row absent) 상태를 해소할 수 있다.
+- 재검토 트리거:
+  - Event Hubs/Kafka watermark 동작 변경으로 안정적인 high watermark 조회가 보장되는 경우.
+  - lag 산식/계측 contract가 `0 fallback` 대신 별도 unknown state를 요구하도록 변경되는 경우.
+- 근거:
+  - 코드: `src/consumer/main.py`, `tests/unit/test_consumer_contract_flow.py`
+  - 검증 로그: `.agents/logs/verification/20260224_145812_f3_4_kafka_lag_recovery/18_appmetrics_consumer_kafka_lag_30m_after_fallback.log`
+  - 검증 로그: `.agents/logs/verification/20260224_145812_f3_4_kafka_lag_recovery/19_appmetrics_inventory_30m_after_fallback.log`
+
+### DEC-242 E2-2 시크릿 소스 정책(dev-first)
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - `local` 환경은 기존 env 기반 주입을 허용한다.
+  - `dev`/`prod` 환경은 Key Vault를 source of truth로 사용한다.
+  - 시크릿 접근 경로는 Key Vault + Managed Identity로 고정한다.
+  - 런타임 코드 변경 없이 운영 설계/증빙 계약을 우선 확정한다.
+- 영향:
+  - E2-2 범위에서 시크릿 전달 정책의 해석 차이를 제거한다.
+  - 운영형 환경에서 민감값의 직접 env 주입은 롤백 시 한시 허용(owner/approval/ttl 기록 필수)으로 제한된다.
+- 재검토 트리거:
+  - 런타임 시크릿 로더 도입(코드 변경) 또는 플랫폼 보안정책 변경 시.
+- 근거:
+  - `docs/ops/e2_2_secret_identity_transition_runbook.md`
+  - `configs/README.md`
+  - `.roadmap/implementation_roadmap.md`
+
+### DEC-243 E2-2 최소권한 RBAC 경계 및 Event Hubs external ownership
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - E2-2 RBAC 기준은 least privilege로 고정한다.
+  - DB/Event Hubs/AKS/Key Vault에 대해 `Principal`, `Role`, `Scope`, `Owner`, `Approval`, `Evidence command` 매트릭스를 운영 기준으로 사용한다.
+  - Event Hubs 리소스/인증 정책은 external ownership(플랫폼 메시징 팀)으로 고정하며, E2-2에서 우리 팀이 변경하지 않는다.
+- 영향:
+  - 권한 변경 승인 경로와 증빙 명령이 표준화된다.
+  - Event Hubs는 의존성 계약(시크릿 제공 주체/회전 SLA/장애 에스컬레이션)만 고정하고 변경 책임은 분리된다.
+- 재검토 트리거:
+  - Event Hubs 소유권 경계 변경, 또는 플랫폼팀 운영 정책 변경 시.
+- 근거:
+  - `docs/ops/e2_2_rbac_matrix.md`
+  - `.specs/infra/tx_lookup_azure_resource_inventory.md`
+  - `.roadmap/implementation_roadmap.md`
+
+### DEC-244 E2-2 401/403 관측 경로와 DB 감사 경로 분리
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - 인증/인가 실패(`401/403`)는 auth 계층(App/Gateway/AppInsights) 로그로 추적한다.
+  - 조회 경로의 `200/404`는 `bo.admin_audit_logs`로 추적한다.
+  - `admin_audit_logs` 검증 기준은 `status_code in (200,404)`와 `result_count` 집계로 고정한다.
+- 영향:
+  - 보안 실패 경로와 조회 감사 경로의 책임 경계가 명확해진다.
+  - E2-2 문서/증빙에서 동일한 쿼리 기준으로 검증 가능하다.
+- 재검토 트리거:
+  - 인증 미들웨어 동작 변경, 또는 감사 수집 요구사항(401/403 DB 적재) 변경 시.
+- 근거:
+  - `docs/ops/e2_2_auth_failure_observability_runbook.md`
+  - `docs/ops/e2_2_validation_evidence_template.md`
+  - `.specs/backoffice_project_specs.md`
+  - `.specs/backoffice_db_admin_api.md`
+
 ## DEC-207~217 의존성 작업 묶음
 
 ### 묶음 A - 정책/참조 정합성 선행 ✓ 완료

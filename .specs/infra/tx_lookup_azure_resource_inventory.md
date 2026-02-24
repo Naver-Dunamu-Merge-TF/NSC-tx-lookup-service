@@ -1,18 +1,18 @@
 # tx-lookup-service Azure 리소스 인벤토리 (dev)
 
-최종 검증: 2026-02-24 10:28 KST  
-검증 방법: Azure CLI(`az`) 실시간 조회  
-리소스 그룹: `2dt-final-team4`  
+최종 검증: 2026-02-25 KST
+검증 방법: Azure CLI(`az`) 실시간 조회
+리소스 그룹: `2dt-final-team4`
 구독: `대한상공회의소 Data School`
 
 ## 1. 핵심 런타임 리소스 (필수 사용)
 
 | 구분 | Azure 리소스 타입 | 리소스 이름 | 엔드포인트 / 접근 지점 | tx-lookup-service에서의 용도 | 현재 상태 |
 |---|---|---|---|---|---|
-| Backoffice DB | PostgreSQL Flexible Server | `nsc-pg-dev` | `nsc-pg-dev.postgres.database.azure.com:5432` | Consumer upsert 대상, Admin API 조회 원본 | `Ready` |
-| 메시징 | Event Hubs Namespace (Kafka) | `nsc-evh-dev` | `nsc-evh-dev.servicebus.windows.net:9093` (Kafka), `:443` (AMQP/관리) | Sync Consumer 입력 스트림 | `Active` |
-| 런타임 | AKS Managed Cluster | `nsc-aks-dev` | Private cluster (`az aks get-credentials`) | Admin API + Consumer 배포 대상 | `Running` (`provisioningState=Canceled`) |
-| 이미지 레지스트리 | Azure Container Registry | `nscacrdevw4mlu8` | `nscacrdevw4mlu8.azurecr.io` | API/Consumer 이미지 push/pull | `Succeeded` |
+| Backoffice DB | PostgreSQL Flexible Server | `nsc-pg-dev` | `nsc-pg-dev.postgres.database.azure.com:5432` | Consumer upsert 대상, Admin API 조회 원본 | `Ready` (`publicNetworkAccess=Enabled` + firewall rules, ⚠️ 드리프트 참고) |
+| 메시징 | Event Hubs Namespace (Kafka) | `nsc-evh-dev` | `nsc-evh-dev.servicebus.windows.net:9093` (Kafka), `:443` (AMQP/관리) | Sync Consumer 입력 스트림 | `Active` (`publicNetworkAccess=Enabled`, defaultAction=Allow, ⚠️ 드리프트 참고) |
+| 런타임 | AKS Managed Cluster | `nsc-aks-dev` | Private cluster (`az aks get-credentials`) | Admin API + Consumer 배포 대상 | `Running` (`provisioningState=Succeeded`) |
+| 이미지 레지스트리 | Azure Container Registry | `nscacrdevw4mlu8` | `nscacrdevw4mlu8.azurecr.io` | API/Consumer 이미지 push/pull | `Succeeded` (`publicNetworkAccess=Enabled` — F3-4 preaction 변경, ⚠️ 드리프트 참고) |
 | 시크릿 저장소 | Azure Key Vault | `nsc-kv-dev` | `https://nsc-kv-dev.vault.azure.net/` | DB/Event Hubs/Auth 시크릿 관리 | `Succeeded` |
 | 앱 텔레메트리 | Application Insights | `nsc-ai-dev` | App Insights connection string | 앱 트레이스/메트릭 전송 대상 | `Succeeded` |
 | 로그 분석 | Log Analytics Workspace | `nsc-law-dev` | LAW Workspace | 중앙 로그/알림 쿼리 백엔드 | `Succeeded` |
@@ -77,20 +77,38 @@
 | `KAFKA_GROUP_ID` | Consumer Group | tx-lookup 전용 그룹 (예: `bo-sync-consumer`) |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | `nsc-ai-dev` | Key Vault 저장 connection string |
 
-## 6. 소유권 경계 (운영 규칙)
+## 6. 현재 드리프트 목록 (E2-1 기준)
+
+> 2026-02-25 az CLI 실측 결과. 드리프트 정렬은 인프라팀 협의 후 E2 게이트에서 처리 (`DEC-225`).
+
+| 리소스 | 항목 | Cloud-Secure 요구 | 실측값 | 비고 |
+|--------|------|-------------------|--------|------|
+| PostgreSQL `nsc-pg-dev` | `publicNetworkAccess` | Disabled | **Enabled** | firewall rule 2개: `AKS_temp_inbound`, personal IP |
+| PostgreSQL `nsc-pg-dev` | VNet 통합 | VNet integrated | **없음** (PE 방식) | PE `nsc-pe-pg` 는 Succeeded |
+| Event Hubs `nsc-evh-dev` | `publicNetworkAccess` | Disabled 또는 restricted | **Enabled** | PE `nsc-pe-evh` 는 Succeeded |
+| Event Hubs `nsc-evh-dev` | `defaultAction` | Deny | **Allow** | VNet/IP rule 없음 |
+| ACR `nscacrdevw4mlu8` | `publicNetworkAccess` | Disabled | **Enabled** | F3-4 infra preaction(2026-02-24)에서 AKS pull 허용 목적으로 변경 |
+
+정렬 완료 항목:
+- AKS: `provisioningState=Succeeded`, private cluster ✅
+- Key Vault: `publicNetworkAccess=Disabled`, RBAC 활성화 ✅
+- 모든 Private Endpoint: `Succeeded` ✅
+
+## 7. 소유권 경계 (운영 규칙)
 
 - 리소스 프로비저닝과 기본 정책은 인프라팀 소유다.
 - 이 저장소는 필요한 리소스/네이밍/애플리케이션 설정을 정의한다.
 - 문서와 실리소스 간 드리프트는 추적하되 F-track 개발을 차단하지 않는다(`DEC-225`).
 - AKS/클러스터 내 검증은 현재 후순위로 이연하되, 문서 최종화 전에 선행 수행한다(`DEC-226`).
 
-## 7. 증빙
+## 8. 증빙
 
-- 실검증 로그: `.agents/logs/verification/azure_resource_validation_20260223_222811.log`
+- 실검증 로그(최초): `.agents/logs/verification/azure_resource_validation_20260223_222811.log`
+- 실검증 로그(E2-1 드리프트): `.agents/logs/verification/20260225_e2_1_drift_inventory/`
 - 점프박스 파일럿 로그: `.agents/logs/verification/20260224_012413_f3_3_jumpbox_pilot/`
 - 관련 의사결정: `.specs/decision_open_items.md` (`DEC-111`, `DEC-225`, `DEC-236`)
 
-## 8. 업데이트 절차
+## 9. 업데이트 절차
 
 인프라 변경 시점 또는 주요 배포 게이트 전에 본 문서를 갱신한다.
 AKS/클러스터 내 검증은 문서 최종화 전에 반드시 1회 수행하고 증빙을 남긴다.
@@ -128,3 +146,11 @@ AKS/클러스터 내 검증은 문서 최종화 전에 반드시 1회 수행하�
    - `az eventhubs eventhub list -g 2dt-final-team4 --namespace-name nsc-evh-dev`
    - `az eventhubs eventhub consumer-group list -g 2dt-final-team4 --namespace-name nsc-evh-dev --eventhub-name <hub-name>`
 4. 출력 결과를 `.agents/logs/verification/`에 증빙으로 저장하고, 본 문서의 `최종 검증` 시각을 갱신한다.
+
+### 8.3 E2-2 시크릿/권한 전환 계약 연계
+
+- 시크릿 전환 런북: `docs/ops/e2_2_secret_identity_transition_runbook.md`
+- RBAC 매트릭스: `docs/ops/e2_2_rbac_matrix.md`
+- 인증 실패/감사 분리 런북: `docs/ops/e2_2_auth_failure_observability_runbook.md`
+- 증빙 템플릿: `docs/ops/e2_2_validation_evidence_template.md`
+- Event Hubs는 external ownership 경계로 고정하며, 이 저장소는 입력 계약(시크릿 제공 주체/회전 SLA)만 관리한다.

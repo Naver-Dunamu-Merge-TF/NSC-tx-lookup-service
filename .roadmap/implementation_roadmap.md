@@ -32,7 +32,7 @@ Last updated: 2026-02-24
 | F2 | COMPLETE | `.specs/backoffice_project_specs.md` 9.1, `.specs/decision_open_items.md` DEC-211/216, `src/consumer/pairing.py` |
 | F3 | IN PROGRESS | `.specs/backoffice_project_specs.md` 9.1, `.specs/backoffice_project_specs.md` 11, `.specs/backoffice_data_project.md` 11 |
 | E1 | COMPLETE | `.specs/backoffice_project_specs.md` 9.2, `.specs/archive/cloud_phase8_execution_report.md`, `.specs/infra/cloud_migration_rebuild_plan.md` 3.1 |
-| E2 | NOT STARTED | `.specs/backoffice_project_specs.md` 9.2, `.specs/infra/cloud_migration_rebuild_plan.md` 3.2(Stage B) |
+| E2 | IN PROGRESS | `.specs/backoffice_project_specs.md` 9.2, `.specs/infra/cloud_migration_rebuild_plan.md` 3.2(Stage B), `.agents/logs/verification/20260225_e2_1_drift_inventory/` |
 | E3 | NOT STARTED | `.specs/backoffice_project_specs.md` 9.2, `.specs/infra/cloud_migration_rebuild_plan.md` 3.2(Stage C) |
 
 ## 3) 완료 단계 요약 (짧게)
@@ -103,35 +103,47 @@ Last updated: 2026-02-24
 
 #### 대형 태스크 F3-4: AKS 조기 검증 트랙
 - [x] AKS 상태 안정화 확인(`provisioningState=Succeeded`) 및 `txlookup` namespace 준비 `[분류: 최소동작 필수]`
-- [ ] API/Consumer 이미지 pull + 기동 스모크 (DB/Event Hubs 연결 확인) `[분류: 최소동작 필수]`
-- [ ] 클러스터 내 `GET /admin/tx/{tx_id}` 200/404 스모크 + consumer lag/freshness 점검 `[분류: 최소동작 필수]`
+- [x] API/Consumer 이미지 pull + 기동 스모크 (DB/Event Hubs 연결 확인) `[분류: 최소동작 필수]`
+- [x] 클러스터 내 `GET /admin/tx/{tx_id}` 200/404 스모크 + consumer lag/freshness 점검 `[분류: 최소동작 필수]`
 - [x] 실패 케이스 분류(runbook)와 재시도 기준 문서화 `[분류: 운영/권장]`
-- 상태 메모: `PARTIAL (task1/task4 complete; task2/3 pending)`
+- 상태 메모: `COMPLETE (task2 startup/connectivity pass, task3 API 404/200 pass, task4 lag/freshness evidence pass; infra preaction 이후 잔여 이슈였던 consumer_kafka_lag 미수집은 watermark 계측 경로 보강 후 회복)`
 - 실행 방식(고정):
   - 근거(운영 런북): `docs/ops/f3_4_aks_early_validation_runbook.md`
   - 근거(증빙 템플릿): `docs/ops/f3_4_validation_evidence_template.md`
-  - 근거(결정): `.specs/decision_open_items.md` (`DEC-237`)
-- 근거(검증 로그): `.agents/logs/verification/20260224_100242_f3_4_runtime_status_check/`, `.agents/logs/verification/20260224_101159_f3_4_closeout/`
+  - 근거(결정): `.specs/decision_open_items.md` (`DEC-237`, `DEC-239`, `DEC-240`)
+- 근거(검증 로그): `.agents/logs/verification/20260224_100242_f3_4_runtime_status_check/`, `.agents/logs/verification/20260224_101159_f3_4_closeout/`, `.agents/logs/verification/20260224_103700_f3_4_runtime_closeout/`, `.agents/logs/verification/20260224_110000_f3_4_runtime_recovery/`, `.agents/logs/verification/20260224_113527_f3_4_metric_recovery/`, `.agents/logs/verification/20260224_143303_f3_4_infra_preaction/`, `.agents/logs/verification/20260224_145812_f3_4_kafka_lag_recovery/`
 - 관측 스냅샷:
   - AKS `provisioningState=Succeeded`, `txlookup` namespace `Active`
   - `txlookup` namespace 배포 확인: `tx-lookup-api`, `txlookup-postgres`
-  - `consumer` 배포/파드는 현재 스냅샷에서 미확인
+  - recovery run에서 `txlookup-consumer` 배포/파드 기동 확인 (image=`txlookup/api:<tag>`, command=`python -m src.consumer.main consume`)
+  - DB/Event Hubs 연결 확인 로그 확보(`db_connectivity_ok`, `eventhubs_tcp_ok`)
+  - API smoke 재시도 결과: `404`/`200` 모두 확인
+  - infra preaction에서 Firewall rule `allow-appinsights-telemetry`를 추가하고 AppInsights 관련 FQDN deny를 allow로 전환 확인
+  - preaction 이후 pod TLS handshake(`in.applicationinsights`, `dc.services.visualstudio.com`) 성공, AppMetrics에 `consumer_freshness_seconds`, `consumer_messages_total`, `consumer_event_lag_seconds` 재유입 확인
+  - `consumer_kafka_lag` 복구 확인: AppMetrics 30m 질의에서 row 재발생(`max_lag=0`, rows>0) 및 metric inventory에 `consumer_kafka_lag` 포함
 - unblock criteria: `provisioningState=Succeeded`, `txlookup namespace ready`, `API 200/404 smoke pass`, `lag/freshness evidence pass`
 
-### E2 — NOT STARTED
+### E2 — IN PROGRESS
 
 #### 대형 태스크 E2-1: Cloud-Secure 리소스 준비(보안형)
-- [ ] 인프라팀에 서비스 전용/공유 리소스 요청서 제출(PostgreSQL 전용 + AKS/ACR/Key Vault 공유 모델) `[분류: 운영/권장]`
-- [ ] AKS 클러스터 배포 경로(네임스페이스, 권한, 네트워크) 선행 검증 결과 반영 `[분류: 운영/권장]`
-- [ ] 네트워크 요구사항(Private Endpoint/VNet/Firewall) 상세 명세 확정 `[분류: 운영/권장]`
-- [ ] 리소스 네이밍/태그/소유권 검증 체크리스트 작성 `[분류: 운영/권장]`
-- [ ] 문서 기준 대비 실제 Azure 리소스 드리프트(public/private, access rule, provisioning state) 목록화 `[분류: 운영/권장]`
-- [ ] 드리프트 정렬 적용 후 `az` 재검증 로그를 `.agents/logs/verification/`에 증빙 저장 `[분류: 운영/권장]`
+- [x] 인프라팀에 서비스 전용/공유 리소스 요청서 제출(PostgreSQL 전용 + AKS/ACR/Key Vault 공유 모델) `[분류: 운영/권장]`
+- [x] AKS 클러스터 배포 경로(네임스페이스, 권한, 네트워크) 선행 검증 결과 반영 `[분류: 운영/권장]`
+- [x] 문서 기준 대비 실제 Azure 리소스 드리프트(public/private, access rule, provisioning state) 목록화 `[분류: 운영/권장]`
+- 상태 메모: `IN PROGRESS` — 리소스 기프로비저닝 확인, F3-4 AKS 검증 결과 반영 완료, 드리프트 목록화 완료(2026-02-25). 잔여: 네트워크 명세 확정(PG/EVH/ACR public access 결정), 드리프트 정렬 인프라팀 협의 필요.
+- 근거(드리프트 목록): `.agents/logs/verification/20260225_e2_1_drift_inventory/`
+- 근거(AKS 배포 경로): `.agents/logs/verification/20260224_075536_f3_3_l3_pass/`, `.agents/logs/verification/20260224_145812_f3_4_kafka_lag_recovery/`
 
 #### 대형 태스크 E2-2: 시크릿/권한 전환
-- [ ] SAS/env 기반 전달에서 Key Vault + Managed Identity 방식으로 전환 설계 `[분류: 운영/권장]`
-- [ ] 최소권한 RBAC 매트릭스(DB/Event Hubs/AKS/Key Vault) 확정 `[분류: 운영/권장]`
-- [ ] 접근 실패(401/403/권한오류) 관측 경로와 감사 경로 분리 정의 `[분류: 운영/권장]`
+- [x] SAS/env 기반 전달에서 Key Vault + Managed Identity 방식으로 전환 설계 `[분류: 운영/권장]`
+- [x] 최소권한 RBAC 매트릭스(DB/Event Hubs/AKS/Key Vault) 확정 `[분류: 운영/권장]`
+- [x] 접근 실패(401/403/권한오류) 관측 경로와 감사 경로 분리 정의 `[분류: 운영/권장]`
+- 상태 메모: `COMPLETE (design/ops gate, dev-first)` — 앱 런타임 코드 변경 없이 문서 계약/증빙 템플릿/결정문서 정렬 완료. Event Hubs는 external ownership 경계로 고정해 E2-2 범위에서 리소스/인증 정책 변경을 수행하지 않음.
+- 근거(운영 런북): `docs/ops/e2_2_secret_identity_transition_runbook.md`
+- 근거(RBAC 매트릭스): `docs/ops/e2_2_rbac_matrix.md`
+- 근거(관측 분리 런북): `docs/ops/e2_2_auth_failure_observability_runbook.md`
+- 근거(증빙 템플릿): `docs/ops/e2_2_validation_evidence_template.md`
+- 근거(결정): `.specs/decision_open_items.md` (`DEC-242`, `DEC-243`, `DEC-244`)
+- 근거(검증 로그): `.agents/logs/verification/20260224_155032_e2_2_secret_rbac_gate/`
 
 #### 대형 태스크 E2-3: 재적재/컷오버 리허설
 - [ ] `alembic upgrade head -> backfill -> consumer sync` 순서 리허설 `[분류: 운영/권장]`
