@@ -102,10 +102,21 @@ Last updated: 2026-02-24
   - 정기 회귀 cadence: F3 closeout 이후 주 1회 또는 E2 진입 전 사전 실행
 
 #### 대형 태스크 F3-4: AKS 조기 검증 트랙
-- [ ] AKS 상태 안정화 확인(`provisioningState=Succeeded`) 및 `txlookup` namespace 준비 `[분류: 최소동작 필수]`
+- [x] AKS 상태 안정화 확인(`provisioningState=Succeeded`) 및 `txlookup` namespace 준비 `[분류: 최소동작 필수]`
 - [ ] API/Consumer 이미지 pull + 기동 스모크 (DB/Event Hubs 연결 확인) `[분류: 최소동작 필수]`
 - [ ] 클러스터 내 `GET /admin/tx/{tx_id}` 200/404 스모크 + consumer lag/freshness 점검 `[분류: 최소동작 필수]`
-- [ ] 실패 케이스 분류(runbook)와 재시도 기준 문서화 `[분류: 운영/권장]`
+- [x] 실패 케이스 분류(runbook)와 재시도 기준 문서화 `[분류: 운영/권장]`
+- 상태 메모: `PARTIAL (task1/task4 complete; task2/3 pending)`
+- 실행 방식(고정):
+  - 근거(운영 런북): `docs/ops/f3_4_aks_early_validation_runbook.md`
+  - 근거(증빙 템플릿): `docs/ops/f3_4_validation_evidence_template.md`
+  - 근거(결정): `.specs/decision_open_items.md` (`DEC-237`)
+- 근거(검증 로그): `.agents/logs/verification/20260224_100242_f3_4_runtime_status_check/`, `.agents/logs/verification/20260224_101159_f3_4_closeout/`
+- 관측 스냅샷:
+  - AKS `provisioningState=Succeeded`, `txlookup` namespace `Active`
+  - `txlookup` namespace 배포 확인: `tx-lookup-api`, `txlookup-postgres`
+  - `consumer` 배포/파드는 현재 스냅샷에서 미확인
+- unblock criteria: `provisioningState=Succeeded`, `txlookup namespace ready`, `API 200/404 smoke pass`, `lag/freshness evidence pass`
 
 ### E2 — NOT STARTED
 

@@ -556,6 +556,27 @@
   - `docs/ops/f3_3_aks_jumpbox_teardown_runbook.md`
   - `.agents/logs/verification/20260224_012413_f3_3_jumpbox_pilot/`
 
+### DEC-237 F3-4 AKS 조기 검증 실패 분류 및 재시도 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - F3-4 실행 중 실패는 `ENVIRONMENT_BLOCKED`, `STARTUP_FAILED`, `SMOKE_FAILED`, `METRIC_FAILED`, `MONITORING_ACCESS_BLOCKED`로 분류한다.
+  - 모든 blocked/failed 실행 기록에는 `retry owner`, `retry date`, `unblock criteria`를 필수로 남긴다.
+  - F3-4 unblock criteria 기준은 아래 4가지 동시 충족이다:
+    - `provisioningState=Succeeded`
+    - `txlookup namespace ready`
+    - `API 200/404 smoke pass`
+    - `lag/freshness evidence pass`
+- 영향:
+  - AKS 조기 검증의 재시도/승인 판정이 실행자별 해석 없이 동일 기준으로 적용된다.
+  - E2 진입 전 F3-4 필수 증빙의 누락 위험을 줄인다.
+- 재검토 트리거:
+  - AKS 운영 정책 변경, 모니터링 경로 변경(AppMetrics 접근 정책 포함), 또는 E2 승인 게이트 변경.
+- 근거:
+  - `docs/ops/f3_4_aks_early_validation_runbook.md`
+  - `docs/ops/f3_4_validation_evidence_template.md`
+  - `.roadmap/implementation_roadmap.md`
+
 ## DEC-207~217 의존성 작업 묶음
 
 ### 묶음 A - 정책/참조 정합성 선행 ✓ 완료
