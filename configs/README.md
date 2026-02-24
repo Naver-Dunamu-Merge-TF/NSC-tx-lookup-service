@@ -3,7 +3,8 @@
 Rules
 - Use `APP_ENV` to select `local`, `dev`, or `prod`.
 - `local` defaults are safe for Docker Compose (no secrets committed).
-- `dev`/`prod` must set all connection values via environment variables or secret stores.
+- `dev`/`prod` must use Key Vault-backed secret delivery as the source of truth.
+- Temporary env fallback in `dev`/`prod` is allowed only for time-bounded rollback with owner/approval/ttl evidence.
 - Follow 12-factor practices: never commit credentials.
 
 Required variables (current skeleton)
