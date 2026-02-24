@@ -713,6 +713,48 @@
   - `.specs/backoffice_project_specs.md`
   - `.specs/backoffice_db_admin_api.md`
 
+### DEC-245 E2-3 `T_cutover` UTC+완충창 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - E2-3 재적재/컷오버 리허설의 기준 시각 `T_cutover`는 UTC ISO8601 형식으로 고정한다.
+  - 운영 완충창은 `+/-5분`으로 고정한다.
+  - backfill 범위는 `T_cutover` 이전(`T_cutover-24h` ~ `T_cutover-1s`), consumer sync 범위는 `T_cutover` 이후(`>= T_cutover`)로 분리한다.
+- 영향:
+  - 재적재와 증분 반영의 경계가 단일 UTC 기준으로 고정되어 실행자별 해석 차이를 줄인다.
+  - E2-3 증빙 로그에서 시간 범위 판정이 일관된다.
+- 재검토 트리거:
+  - 운영팀 컷오버 윈도우 표준이 변경되거나, 완충창이 과도한 지연/누락을 유발하는 근거가 누적되는 경우.
+- 근거:
+  - `.specs/infra/cloud_migration_rebuild_plan.md`
+  - `docs/ops/e2_3_reload_cutover_rehearsal_runbook.md`
+  - `.roadmap/implementation_roadmap.md`
+
+### DEC-246 E2-3 컷오버 `GO`/`NO_GO` 및 롤백 판단 기준
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - E2-3 컷오버 의사결정 값은 `GO` 또는 `NO_GO`로만 관리한다.
+  - `GO` 기준은 아래 5개 게이트 동시 충족으로 고정한다.
+    - `alembic upgrade head` 성공
+    - backfill 성공
+    - consumer sync 성공
+    - `GET /admin/tx/{tx_id}` `200`/`404` 스모크 성공
+    - duplicate 재처리 후 canonical payload 불변(멱등)
+      - canonical payload 기준: `GET /admin/tx/{tx_id}` 응답에서 `event_time`, `data_lag_sec`를 제외한 JSON hash
+  - `NO_GO` 기준은 위 게이트 중 하나라도 실패한 경우로 고정한다.
+  - `NO_GO` 시 컷오버 승격은 수행하지 않고, `failure_classification`, `owner`, `retry_at_utc`, `unblock_criteria`를 기록한다.
+  - 재시도는 반드시 새 `T_cutover` 값으로 전체 리허설을 다시 수행한다.
+- 영향:
+  - 컷오버 승인/보류 기준이 명확해져 운영 리스크를 선제적으로 차단할 수 있다.
+  - 멱등/스모크 실패 시 부분 승격을 방지한다.
+- 재검토 트리거:
+  - E2 승인 게이트 정책 변경, 또는 E2-3 리허설 자동화 단계(E3)에서 판단 모델이 변경되는 경우.
+- 근거:
+  - `docs/ops/e2_3_cutover_rollback_decision_matrix.md`
+  - `docs/ops/e2_3_validation_evidence_template.md`
+  - `.roadmap/implementation_roadmap.md`
+
 ## DEC-207~217 의존성 작업 묶음
 
 ### 묶음 A - 정책/참조 정합성 선행 ✓ 완료

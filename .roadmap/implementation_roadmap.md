@@ -146,9 +146,27 @@ Last updated: 2026-02-24
 - 근거(검증 로그): `.agents/logs/verification/20260224_155032_e2_2_secret_rbac_gate/`
 
 #### 대형 태스크 E2-3: 재적재/컷오버 리허설
-- [ ] `alembic upgrade head -> backfill -> consumer sync` 순서 리허설 `[분류: 운영/권장]`
-- [ ] `GET /admin/tx/{tx_id}` 200/404 스모크 + 멱등 재처리 검증 `[분류: 운영/권장]`
-- [ ] 컷오버 시점(`T_cutover`) 및 롤백 의사결정 기준 문서화 `[분류: 운영/권장]`
+- [x] `alembic upgrade head -> backfill -> consumer sync` 순서 리허설 `[분류: 운영/권장]`
+- [x] `GET /admin/tx/{tx_id}` 200/404 스모크 + 멱등 재처리 검증 `[분류: 운영/권장]`
+- [x] 컷오버 시점(`T_cutover`) 및 롤백 의사결정 기준 문서화 `[분류: 운영/권장]`
+- 상태 메모: `COMPLETE (jumpbox-path rehearsal pass, canonical idempotency hash)` — private AKS 점프박스 경유로 E2-3 리허설 게이트를 통과했고 GO 판정 증빙을 확보했다.
+- 실행 방식(고정):
+  - 근거(운영 런북): `docs/ops/e2_3_reload_cutover_rehearsal_runbook.md`
+  - 근거(컷오버/롤백 매트릭스): `docs/ops/e2_3_cutover_rollback_decision_matrix.md`
+  - 근거(증빙 템플릿): `docs/ops/e2_3_validation_evidence_template.md`
+  - 근거(결정): `.specs/decision_open_items.md` (`DEC-245`, `DEC-246`)
+  - 근거(검증 로그): `.agents/logs/verification/<timestamp>_e2_3_reload_cutover_rehearsal/`
+- 운영 기준:
+  - `T_cutover`는 UTC ISO8601 + `+/-5m` 완충창으로 고정한다.
+  - backfill 범위는 `T_cutover` 이전, consumer sync 범위는 `T_cutover` 이후로 분리한다.
+  - idempotency 비교는 `event_time`, `data_lag_sec` 제외 canonical payload hash 기준으로 고정한다.
+- 최신 실행 결과(2026-02-24 UTC):
+  - `NO_GO (ENVIRONMENT_BLOCKED)` — 로컬 direct `kubectl` 경로에서 AKS private API FQDN DNS 해석 실패(`no such host`).
+  - `NO_GO (IDEMPOTENCY_FAILED)` — full payload hash 비교 시 `event_time`, `data_lag_sec` 변동으로 false negative 발생.
+  - `GO (NONE)` — 점프박스 경유 + canonical hash 기준 리허설에서 migration/backfill/sync/smoke/idempotency 게이트 모두 통과.
+- 근거(초기 차단 증빙): `.agents/logs/verification/20260224_161208_e2_3_reload_cutover_rehearsal/`
+- 근거(해시 기준 보정 전 NO_GO): `.agents/logs/verification/20260224_170327_e2_3_reload_cutover_rehearsal/`
+- 근거(최종 통과 증빙): `.agents/logs/verification/20260224_171350_e2_3_reload_cutover_rehearsal/`
 
 #### 대형 태스크 E2-4: 승인 게이트
 - [ ] 보안 통제 체크(네트워크/시크릿/권한) 통과 증빙 확보 `[분류: 운영/권장]`

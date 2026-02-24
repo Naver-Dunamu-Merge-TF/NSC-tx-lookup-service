@@ -154,3 +154,12 @@ AKS/클러스터 내 검증은 문서 최종화 전에 반드시 1회 수행하�
 - 인증 실패/감사 분리 런북: `docs/ops/e2_2_auth_failure_observability_runbook.md`
 - 증빙 템플릿: `docs/ops/e2_2_validation_evidence_template.md`
 - Event Hubs는 external ownership 경계로 고정하며, 이 저장소는 입력 계약(시크릿 제공 주체/회전 SLA)만 관리한다.
+
+### 8.4 E2-3 재적재/컷오버 리허설 계약 연계
+
+- 운영 런북: `docs/ops/e2_3_reload_cutover_rehearsal_runbook.md`
+- 컷오버/롤백 매트릭스: `docs/ops/e2_3_cutover_rollback_decision_matrix.md`
+- 증빙 템플릿: `docs/ops/e2_3_validation_evidence_template.md`
+- 증빙 경로: `.agents/logs/verification/<timestamp>_e2_3_reload_cutover_rehearsal/`
+- `T_cutover` 기준: UTC ISO8601 + `+/-5m` 완충창(DEC-245)
+- 컷오버 의사결정: `GO`/`NO_GO` + 실패 분류(`MIGRATION_FAILED`, `BACKFILL_FAILED`, `SYNC_FAILED`, `SMOKE_FAILED`, `IDEMPOTENCY_FAILED`) 고정(DEC-246)
