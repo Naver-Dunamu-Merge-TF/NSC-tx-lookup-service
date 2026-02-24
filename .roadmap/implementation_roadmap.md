@@ -50,6 +50,10 @@ Last updated: 2026-02-24
 
 ## 4) 미완료 단계 실행 백로그 (대형 태스크 + 세부 태스크)
 
+- 분류 태그:
+  - `[분류: 최소동작 필수]`: AKS 기본 동작 확인 + E2 진입 차단 해제를 위한 필수 작업
+  - `[분류: 운영/권장]`: 운영 안정화/고도화 목적 작업(현 단계 기준)
+
 ### F3 — IN PROGRESS
 
 #### 대형 태스크 F3-1: 상태/버전 이벤트 계약 표준화
@@ -80,71 +84,76 @@ Last updated: 2026-02-24
 #### 대형 태스크 F3-3: 품질 게이트 마감
 - [x] L2 게이트(`.venv/bin/python -m pytest --cov-fail-under=80`) 정기 통과 상태 확보
 - [x] 페어링/상태 변경 관련 L3 스모크 기준 시나리오 확정 (AKS/클러스터 내 실행 포함)
-- [ ] AKS/클러스터 내 검증 수행 및 증빙 확보 (E2 진입 전 최소 1회, 이후 정기 회귀)
+- [x] AKS/클러스터 내 검증 수행 및 증빙 확보 (E2 진입 전 최소 1회, 이후 정기 회귀) `[분류: 최소동작 필수]`
 - [x] F3 완료 판정 체크리스트(계약, 알림, 테스트) 문서화
 - 상태 메모: `CONDITIONAL (L3 deferred by DEC-226)` / E2 진입은 L3 pass 증빙 전까지 차단
 - 실행 방식(고정):
   - 서브에이전트 루프 고정: `Implementer -> Spec Reviewer -> Code Quality Reviewer -> Fix/Re-review`
   - 근거(운영 런북): `docs/ops/f3_3_quality_gate_runbook.md`
+  - 근거(점프박스 런북): `docs/ops/f3_3_aks_jumpbox_runbook.md`
+  - 근거(점프박스 teardown): `docs/ops/f3_3_aks_jumpbox_teardown_runbook.md`
   - 근거(L3 시나리오): `docs/ops/f3_3_l3_cluster_smoke_scenarios.md`
   - 근거(완료 체크리스트): `docs/ops/f3_3_closeout_checklist.md`
   - 근거(결정): `.specs/decision_open_items.md` (`DEC-226`, `DEC-235`)
   - 근거(검증 로그): `.agents/logs/verification/20260223_174702_f3_3_task1/`, `.agents/logs/verification/20260223_174800_f3_3_task2/`, `.agents/logs/verification/20260223_174856_f3_3_task3/`, `.agents/logs/verification/20260223_175009_f3_3_task4/`, `.agents/logs/verification/20260223_175121_f3_3_task5/`
   - 근거(L3 조건부 증빙): `.agents/logs/verification/20260223_175150_f3_3_l3_blocked/`
+  - 근거(L3 pass 증빙): `.agents/logs/verification/20260224_075536_f3_3_l3_pass/`
+  - 근거(점프박스 파일럿 증빙): `.agents/logs/verification/20260224_012413_f3_3_jumpbox_pilot/`
+  - 정기 회귀 cadence: F3 closeout 이후 주 1회 또는 E2 진입 전 사전 실행
 
 #### 대형 태스크 F3-4: AKS 조기 검증 트랙
-- [ ] AKS 상태 안정화 확인(`provisioningState=Succeeded`) 및 `txlookup` namespace 준비
-- [ ] API/Consumer 이미지 pull + 기동 스모크 (DB/Event Hubs 연결 확인)
-- [ ] 클러스터 내 `GET /admin/tx/{tx_id}` 200/404 스모크 + consumer lag/freshness 점검
-- [ ] 실패 케이스 분류(runbook)와 재시도 기준 문서화
+- [ ] AKS 상태 안정화 확인(`provisioningState=Succeeded`) 및 `txlookup` namespace 준비 `[분류: 최소동작 필수]`
+- [ ] API/Consumer 이미지 pull + 기동 스모크 (DB/Event Hubs 연결 확인) `[분류: 최소동작 필수]`
+- [ ] 클러스터 내 `GET /admin/tx/{tx_id}` 200/404 스모크 + consumer lag/freshness 점검 `[분류: 최소동작 필수]`
+- [ ] 실패 케이스 분류(runbook)와 재시도 기준 문서화 `[분류: 운영/권장]`
 
 ### E2 — NOT STARTED
 
 #### 대형 태스크 E2-1: Cloud-Secure 리소스 준비(보안형)
-- [ ] 인프라팀에 서비스 전용/공유 리소스 요청서 제출(PostgreSQL 전용 + AKS/ACR/Key Vault 공유 모델)
-- [ ] AKS 클러스터 배포 경로(네임스페이스, 권한, 네트워크) 선행 검증 결과 반영
-- [ ] 네트워크 요구사항(Private Endpoint/VNet/Firewall) 상세 명세 확정
-- [ ] 리소스 네이밍/태그/소유권 검증 체크리스트 작성
-- [ ] 문서 기준 대비 실제 Azure 리소스 드리프트(public/private, access rule, provisioning state) 목록화
-- [ ] 드리프트 정렬 적용 후 `az` 재검증 로그를 `.agents/logs/verification/`에 증빙 저장
+- [ ] 인프라팀에 서비스 전용/공유 리소스 요청서 제출(PostgreSQL 전용 + AKS/ACR/Key Vault 공유 모델) `[분류: 운영/권장]`
+- [ ] AKS 클러스터 배포 경로(네임스페이스, 권한, 네트워크) 선행 검증 결과 반영 `[분류: 운영/권장]`
+- [ ] 네트워크 요구사항(Private Endpoint/VNet/Firewall) 상세 명세 확정 `[분류: 운영/권장]`
+- [ ] 리소스 네이밍/태그/소유권 검증 체크리스트 작성 `[분류: 운영/권장]`
+- [ ] 문서 기준 대비 실제 Azure 리소스 드리프트(public/private, access rule, provisioning state) 목록화 `[분류: 운영/권장]`
+- [ ] 드리프트 정렬 적용 후 `az` 재검증 로그를 `.agents/logs/verification/`에 증빙 저장 `[분류: 운영/권장]`
 
 #### 대형 태스크 E2-2: 시크릿/권한 전환
-- [ ] SAS/env 기반 전달에서 Key Vault + Managed Identity 방식으로 전환 설계
-- [ ] 최소권한 RBAC 매트릭스(DB/Event Hubs/AKS/Key Vault) 확정
-- [ ] 접근 실패(401/403/권한오류) 관측 경로와 감사 경로 분리 정의
+- [ ] SAS/env 기반 전달에서 Key Vault + Managed Identity 방식으로 전환 설계 `[분류: 운영/권장]`
+- [ ] 최소권한 RBAC 매트릭스(DB/Event Hubs/AKS/Key Vault) 확정 `[분류: 운영/권장]`
+- [ ] 접근 실패(401/403/권한오류) 관측 경로와 감사 경로 분리 정의 `[분류: 운영/권장]`
 
 #### 대형 태스크 E2-3: 재적재/컷오버 리허설
-- [ ] `alembic upgrade head -> backfill -> consumer sync` 순서 리허설
-- [ ] `GET /admin/tx/{tx_id}` 200/404 스모크 + 멱등 재처리 검증
-- [ ] 컷오버 시점(`T_cutover`) 및 롤백 의사결정 기준 문서화
+- [ ] `alembic upgrade head -> backfill -> consumer sync` 순서 리허설 `[분류: 운영/권장]`
+- [ ] `GET /admin/tx/{tx_id}` 200/404 스모크 + 멱등 재처리 검증 `[분류: 운영/권장]`
+- [ ] 컷오버 시점(`T_cutover`) 및 롤백 의사결정 기준 문서화 `[분류: 운영/권장]`
 
 #### 대형 태스크 E2-4: 승인 게이트
-- [ ] 보안 통제 체크(네트워크/시크릿/권한) 통과 증빙 확보
-- [ ] 데이터 신선도/API 지연 SLO 재검증 결과 확보
-- [ ] E2 완료 승인 레코드(결재/리뷰 로그) 저장
-- [ ] `DEC-225` 드리프트 정렬 완료 확인(체크리스트 + 검증 로그 링크)
+- [ ] 보안 통제 체크(네트워크/시크릿/권한) 통과 증빙 확보 `[분류: 운영/권장]`
+- [ ] 데이터 신선도/API 지연 SLO 재검증 결과 확보 `[분류: 운영/권장]`
+- [ ] E2 완료 승인 레코드(결재/리뷰 로그) 저장 `[분류: 운영/권장]`
+- [ ] `DEC-225` 드리프트 정렬 완료 확인(체크리스트 + 검증 로그 링크) `[분류: 운영/권장]`
 
 ### E3 — NOT STARTED
 
 #### 대형 태스크 E3-1: CI 게이트 구축
-- [ ] PR 게이트에 lint + unit + integration + coverage(>=80) 구성
-- [ ] `.venv` 기준 검증 명령 고정 및 실패 시 로그 아카이브 자동화
-- [ ] 계약 드리프트 방지 테스트(`tests/unit/test_alert_rules.py` 등) 상시 실행 편입
+- [ ] PR 게이트에 lint + unit + integration + coverage(>=80) 구성 `[분류: 운영/권장]`
+- [ ] `.venv` 기준 검증 명령 고정 및 실패 시 로그 아카이브 자동화 `[분류: 운영/권장]`
+- [ ] 계약 드리프트 방지 테스트(`tests/unit/test_alert_rules.py` 등) 상시 실행 편입 `[분류: 운영/권장]`
 
 #### 대형 태스크 E3-2: CD 파이프라인 구축
-- [ ] build/scan -> migration -> deploy -> smoke 단계 정의
-- [ ] 배포 중단 조건(마이그레이션 실패, 스모크 실패)과 자동 롤백 기준 정의
-- [ ] Cloud-Test 통과 결과를 Cloud-Secure 반영 게이트로 연동
+- [ ] build/scan -> migration -> deploy -> smoke 단계 정의 `[분류: 운영/권장]`
+- [ ] 배포 중단 조건(마이그레이션 실패, 스모크 실패)과 자동 롤백 기준 정의 `[분류: 운영/권장]`
+- [ ] Cloud-Test 통과 결과를 Cloud-Secure 반영 게이트로 연동 `[분류: 운영/권장]`
 
 #### 대형 태스크 E3-3: 운영 복구 체계 운영화
-- [ ] DLQ replay/runbook/backfill 절차를 운영 문서로 고정
-- [ ] 장애/데이터 불일치 대응 체크리스트와 책임자/연락 체계 명시
-- [ ] 정기 복구 훈련(리플레이/재동기화) 일정 및 증빙 방식 확정
+- [ ] DLQ replay/runbook/backfill 절차를 운영 문서로 고정 `[분류: 운영/권장]`
+- [ ] 장애/데이터 불일치 대응 체크리스트와 책임자/연락 체계 명시 `[분류: 운영/권장]`
+- [ ] 정기 복구 훈련(리플레이/재동기화) 일정 및 증빙 방식 확정 `[분류: 운영/권장]`
 
 #### 대형 태스크 E3-4: 이벤트 계약 테스트 자동화
-- [ ] 토픽 필수 필드 계약 테스트를 CI 파이프라인에 통합
-- [ ] 계약 불일치 시 fail-fast 규칙과 알림 채널 정의
-- [ ] 업스트림 계약 변경 시 추적 가능한 변경 이력 정책 확정
+- [ ] 토픽 필수 필드 계약 테스트를 CI 파이프라인에 통합 `[분류: 운영/권장]`
+- [ ] 계약 불일치 시 fail-fast 규칙과 알림 채널 정의 `[분류: 운영/권장]`
+- [ ] 업스트림 계약 변경 시 추적 가능한 변경 이력 정책 확정 `[분류: 운영/권장]`
 
 ## 5) 미완료 단계 최소 완료 게이트
 
@@ -164,4 +173,5 @@ Last updated: 2026-02-24
   - `.agents/logs/verification/20260212_fe_roadmap_enhance_l0_py_compile.log`
   - `.agents/logs/verification/20260212_fe_roadmap_enhance_structure_check.log`
   - `.agents/logs/verification/20260224_000257_roadmap_aks_reenable_l0_py_compile.log`
+  - `.agents/logs/verification/20260224_011800_roadmap_task_classification_l0_py_compile.log`
   - `.agents/logs/verification/20260224_023600_f3_3_plan_doc_l0_py_compile.log`

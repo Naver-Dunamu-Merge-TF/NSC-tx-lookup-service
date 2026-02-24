@@ -541,6 +541,21 @@
 - 재검토 트리거: 성공 L3 pass bundle이 생성되거나 AKS 운영 정책이 변경되는 경우.
 - 근거: `docs/ops/f3_3_quality_gate_runbook.md`, `docs/ops/f3_3_closeout_checklist.md`, `docs/ops/f3_3_validation_evidence_template.md`
 
+### DEC-236 F3-3 jumpbox 기반 private-cluster 검증 및 teardown 정책
+
+- 상태: **결정됨(2026-02-24)**
+- 결정:
+  - AKS private-cluster L3 검증 시 direct path가 불가하면 jumpbox 경로를 사용한다.
+  - jumpbox VM은 private-only(`--public-ip-address ''`)로 생성하고 `owner/purpose/ttl` 태그를 강제한다.
+  - jumpbox teardown SLA는 same-day이며 blocked 결과에서도 teardown은 반드시 수행한다.
+  - 결과 증빙은 `pass` 또는 `blocked` 모두 허용하되, blocked의 경우 owner/retry date/unblock criteria를 포함한다.
+- 영향: private-cluster 검증의 재현 가능한 운영 경로를 고정하고 리소스 스프롤/비용 위험을 줄인다.
+- 재검토 트리거: Bastion/네트워크 표준 변경, AKS 접근 정책 변경, 또는 E2 승인 정책 변경.
+- 근거:
+  - `docs/ops/f3_3_aks_jumpbox_runbook.md`
+  - `docs/ops/f3_3_aks_jumpbox_teardown_runbook.md`
+  - `.agents/logs/verification/20260224_012413_f3_3_jumpbox_pilot/`
+
 ## DEC-207~217 의존성 작업 묶음
 
 ### 묶음 A - 정책/참조 정합성 선행 ✓ 완료

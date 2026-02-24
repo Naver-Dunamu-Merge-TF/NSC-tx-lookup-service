@@ -1,6 +1,6 @@
 # tx-lookup-service Azure 리소스 인벤토리 (dev)
 
-최종 검증: 2026-02-23 22:40 KST  
+최종 검증: 2026-02-24 10:28 KST  
 검증 방법: Azure CLI(`az`) 실시간 조회  
 리소스 그룹: `2dt-final-team4`  
 구독: `대한상공회의소 Data School`
@@ -87,7 +87,8 @@
 ## 7. 증빙
 
 - 실검증 로그: `.agents/logs/verification/azure_resource_validation_20260223_222811.log`
-- 관련 의사결정: `.specs/decision_open_items.md` (`DEC-111`, `DEC-225`)
+- 점프박스 파일럿 로그: `.agents/logs/verification/20260224_012413_f3_3_jumpbox_pilot/`
+- 관련 의사결정: `.specs/decision_open_items.md` (`DEC-111`, `DEC-225`, `DEC-236`)
 
 ## 8. 업데이트 절차
 
@@ -98,10 +99,19 @@ AKS/클러스터 내 검증은 문서 최종화 전에 반드시 1회 수행하�
 
 - 운영 런북: `docs/ops/f3_3_quality_gate_runbook.md`
 - 증빙 템플릿: `docs/ops/f3_3_validation_evidence_template.md`
+- 점프박스 프로비저닝/접속: `docs/ops/f3_3_aks_jumpbox_runbook.md`
+- 점프박스 teardown: `docs/ops/f3_3_aks_jumpbox_teardown_runbook.md`
 - L3 실행 개시 조건:
   - `provisioningState=Succeeded`
   - `txlookup namespace ready`
 - 조건 미충족 시 `.agents/logs/verification/<timestamp>_f3_3_l3_blocked/`에 차단 증빙을 남기고 `DEC-226` 조건부 허용 정책을 적용한다.
+
+### 8.2 Jumpbox 운영 정책(F3-3)
+
+- AKS private-cluster 검증 경로가 직접 접근 불가인 경우 jumpbox를 사용한다.
+- jumpbox 리소스는 `owner/purpose/ttl` 태그를 반드시 포함한다.
+- teardown은 same-day 원칙으로 수행하며 blocked 결과에서도 생략할 수 없다.
+- 증빙은 pass/blocked 모두 허용하지만, blocked는 owner/retry/unblock criteria를 반드시 포함한다.
 
 1. 대상 구독/리소스 그룹 확인:
    - `az account show`

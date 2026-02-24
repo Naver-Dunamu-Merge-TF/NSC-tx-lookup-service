@@ -5,6 +5,11 @@
 - Environment: `dev` (`2dt-final-team4`)
 - Goal: close F3-3 by fixing repeatable quality-gate operation and evidence policy
 - Hard rule: E2 entry remains blocked until at least one AKS `in-cluster` L3 pass evidence bundle exists
+- Private AKS `in-cluster` validation uses the jumpbox-required path:
+  - `docs/ops/f3_3_aks_jumpbox_runbook.md`
+  - `docs/ops/f3_3_aks_jumpbox_teardown_runbook.md`
+- Teardown is mandatory with same-day cleanup for every jumpbox run, including blocked runs.
+- Teardown command execution requires explicit requester instruction; until then, evidence must record `teardown_pending=true`.
 
 ## 2) L2 Gate Cadence and Handling
 
@@ -18,6 +23,7 @@ Cadence:
 
 - Daily working-day execution during F3 closeout
 - Mandatory execution before closeout approval request
+- Recurring re-validation cadence after closeout: at least weekly or before E2 entry gate checks
 
 Pass/Fail handling:
 
@@ -47,6 +53,16 @@ Before running L3 scenarios:
 - API endpoint routing from cluster context is reachable
 
 If prerequisite fails, treat L3 as blocked and follow conditional-allow policy (`DEC-226` traceability).
+
+## 4.1) Jumpbox Required Path for Private-Cluster Validation
+
+For private-cluster validation where local runner cannot resolve AKS private DNS, use:
+
+1. Provision and access jumpbox via `docs/ops/f3_3_aks_jumpbox_runbook.md`
+2. Execute AKS readiness and L3 smoke checks from the jumpbox
+3. Run mandatory teardown via `docs/ops/f3_3_aks_jumpbox_teardown_runbook.md`
+
+This path is not optional for private-cluster validation when direct access is unavailable.
 
 ## 5) Evidence Storage Policy
 
@@ -108,14 +124,16 @@ Branch B (`AKS not ready`, conditional allow):
 
 - Save readiness failure logs under `.agents/logs/verification/<timestamp>_f3_3_l3_blocked/`
 - Record defer owner, retry date, unblock criteria
+- Include jumpbox teardown evidence proving same-day cleanup completion
 - Update checklist status to `CONDITIONAL (L3 deferred by DEC-226)`
 - Keep E2 entry hard-blocked until Branch A pass evidence exists
 
-## 7) Latest Execution Snapshot (2026-02-23 UTC)
+## 7) Latest Execution Snapshot (2026-02-24 UTC)
 
 - L0/L1/L2 logs: `.agents/logs/verification/20260223_175121_f3_3_task5/`
 - L3 blocked logs: `.agents/logs/verification/20260223_175150_f3_3_l3_blocked/`
+- Jumpbox pilot evidence: `.agents/logs/verification/20260224_012413_f3_3_jumpbox_pilot/`
 - Observed readiness state:
   - `provisioningState=Canceled`
-  - `kubectl` unavailable in current runner (`command not found`)
+  - `kubectl` failed private DNS resolution from current runner
 - Current closeout status: `CONDITIONAL (L3 deferred by DEC-226)`
