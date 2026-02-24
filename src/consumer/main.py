@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from confluent_kafka import Consumer, KafkaError, KafkaException
+from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
 
 from src.common.config import AppConfig, load_config
 from src.common.kafka import build_kafka_client_config
@@ -262,6 +262,23 @@ def run_consumer(
                     continue
                 raise KafkaException(msg.error())
 
+            try:
+                lag: int | None = None
+                watermarks = consumer.get_watermark_offsets(
+                    TopicPartition(msg.topic(), msg.partition()),
+                    cached=False,
+                )
+                if watermarks is not None:
+                    _low, high = watermarks
+                    lag = max(0, high - msg.offset() - 1)
+            except Exception:
+                logger.debug("Failed to read Kafka offsets", exc_info=True)
+                lag = None
+
+            if lag is None:
+                lag = 0
+            record_kafka_lag(msg.topic(), msg.partition(), lag)
+
             correlation_id = extract_correlation_id_from_headers(msg.headers())
             try:
                 loaded = json.loads(msg.value() or b"{}")
@@ -279,14 +296,6 @@ def run_consumer(
                         runtime,
                         freshness,
                     )
-                    try:
-                        _low, high = consumer.get_watermark_offsets(
-                            msg.topic(), msg.partition(), cached=False
-                        )
-                        lag = max(0, high - msg.offset() - 1)
-                        record_kafka_lag(msg.topic(), msg.partition(), lag)
-                    except Exception:
-                        logger.debug("Failed to read Kafka offsets", exc_info=True)
                     consumer.commit(msg)
                     record_consumer_message(msg.topic(), "success")
                 processed += 1
