@@ -7,15 +7,40 @@ Backoffice Serving Layer for **FR-ADM-02 (거래 내역 추적)**.
 
 ## 프로젝트 개요
 
-- 요구사항: `.specs/requirements/SRS - Software Requirements Specification.md`의 `FR-ADM-02`
-- 핵심 기능:
-  - `tx_id` 단건 조회
-  - `order_id` 기준 조회
-  - `wallet_id` 기준 거래 리스트 조회
-- 구성 요소:
-  - **Admin API** (`src/api/`): FastAPI 기반 조회 엔드포인트
-  - **Sync Consumer** (`src/consumer/`): Kafka 이벤트 consume + 멱등 upsert
-  - **Backoffice DB** (`src/db/`, `migrations/`): 조회 최적화된 파생 저장소
+요구사항 `FR-ADM-02` 기반의 관리자 거래 조회 서비스.
+
+| 구성 요소 | 경로 | 역할 |
+|---|---|---|
+| Admin API | `src/api/` | FastAPI 기반 조회 엔드포인트 |
+| Sync Consumer | `src/consumer/` | Kafka 이벤트 consume + 멱등 upsert |
+| Backoffice DB | `src/db/`, `migrations/` | 조회 최적화된 파생 저장소 |
+
+핵심 기능: `tx_id` 단건 조회 / `order_id` 기준 조회 / `wallet_id` 기준 거래 리스트 조회
+
+## 왜 이 서비스가 필요한가
+
+**문제 1 — OLTP 부하 격리**
+관리자 조회를 OLTP DB에 직접 날리면 결제 처리 트래픽과 섞여 운영 DB에 부하가 생긴다.
+
+**문제 2 — 이벤트 페어링 타이밍**
+결제 한 건이 처리되면 원장에 두 개의 이벤트가 발생한다 — 송신자 지갑의 출금(PAYMENT)과 수신자 지갑의 입금(RECEIVE). 두 이벤트는 Kafka를 통해 전달되기 때문에 **항상 동시에 도착하지 않는다**. 한쪽만 도착한 상태에서 조회하면 결제가 정상 처리됐는지 판단할 수 없다.
+
+> **Databricks 파이프라인과의 차이**: Databricks는 전체 거래 합산이 0인지 검증하는 배치 데이터 품질 감시다. 이 서비스는 특정 거래 건이 지금 어떤 상태인지 실시간으로 조회하는 운영 도구다. 고객 문의("내 결제가 안 됐어요")를 즉시 확인하는 용도이며, 배치 검증으로는 대체할 수 없다.
+
+## 이 서비스는 문제를 어떻게 해결하는가
+
+**해결 1 — 읽기 경로 분리**
+OLTP 이벤트를 Kafka로 받아 조회 전용 DB(Backoffice DB)에 따로 써두고, 관리자 조회는 여기로만 보낸다.
+
+**해결 2 — pairing_status로 이벤트 수신 추적**
+이벤트 하나가 도착하면 Consumer가 같은 `related_id`(= `order_id`)를 가진 반대편 이벤트가 이미 DB에 있는지 확인한다. 확인 후 아래에 명시된 상태를 부여한다. 갱신은 한 번의 이벤트가 올 때마다 페어링이 되지 않은 트랜잭션을 확인 후 한다. `pairing_status`는 이 과정의 현재 상태다.
+
+| 값 | 의미 | 관리자 판단 |
+|---|---|---|
+| `COMPLETE` | PAYMENT + RECEIVE 두 이벤트 모두 수신됨 | 정상 |
+| `INCOMPLETE` | 한쪽 이벤트가 아직 미수신 | 이벤트 지연일 가능성 있음. 잠시 후 재조회 권장 |
+| `UNKNOWN` | `related_id`가 없거나 페어링 대상이 아닌 거래 | 페어링 개념이 없는 거래 유형 |
+
 
 ## 책임 경계와 범위
 
@@ -64,11 +89,30 @@ sequenceDiagram
 
 ## 핵심 도메인/데이터 모델
 
-- `tx_id`: 원장 엔트리(행) PK
-- `related_id`: 페어링 키(기본 `payment_orders.order_id`)
-- 더블 엔트리: `PAYMENT`와 `RECEIVE`는 서로 다른 `tx_id`를 가지며 `related_id`로 연결
+### 더블 엔트리와 페어링
 
-주요 테이블(스키마: `bo`)
+한 번의 결제는 **두 개의 원장 엔트리**로 기록된다.
+
+```
+payment_orders
+  order_id: "ord-001"
+       │
+       │ (related_id = order_id 로 연결)
+       │
+       ├── ledger_entries  tx_id: "tx-pay-001"  entry_type: PAYMENT   wallet: 송신자
+       └── ledger_entries  tx_id: "tx-rcv-001"  entry_type: RECEIVE   wallet: 수신자
+```
+
+- `tx_id`: 원장 엔트리 PK. 엔트리마다 고유하다.
+- `related_id`: 페어링 키. PAYMENT와 RECEIVE 양쪽 모두 동일한 `order_id` 값을 가진다.
+- **pairing_status**: 두 엔트리가 모두 수신됐는지 여부
+  - `COMPLETE` — PAYMENT + RECEIVE 쌍이 모두 확인됨
+  - `INCOMPLETE` — 한쪽 엔트리가 아직 미수신 (이벤트 지연/유실 가능성)
+  - `UNKNOWN` — `related_id` 없음 또는 결제 주문 맥락이 아닌 거래
+
+> `GET /admin/tx/{tx_id}` 조회 시, 해당 tx의 반대편 페어 정보(`paired_tx_id`, `paired_entry_type`)가 함께 반환되므로 단건 조회만으로 쌍 전체 상태를 확인할 수 있다.
+
+### 주요 테이블(스키마: `bo`)
 
 - `bo.ledger_entries`: 원장 엔트리 파생 저장소 (PK `tx_id`)
 - `bo.payment_orders`: 결제 오더 파생 저장소 (PK `order_id`)
@@ -83,13 +127,13 @@ sequenceDiagram
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
-엔드포인트
+### 엔드포인트
 
-| 메서드 | 경로 | 주요 동작 |
-|---|---|---|
-| `GET` | `/admin/tx/{tx_id}` | 거래 단건 조회. 미존재 시 `404`. |
-| `GET` | `/admin/payment-orders/{order_id}` | 주문 기준 조회. 미존재 시 `404`. |
-| `GET` | `/admin/wallets/{wallet_id}/tx` | 지갑 거래 목록 조회. 빈 목록이어도 `200`. |
+| 메서드 | 경로 | 사용 맥락 | 동작 |
+|---|---|---|---|
+| `GET` | `/admin/tx/{tx_id}` | 특정 거래 건을 tx_id로 바로 추적할 때 | 거래 단건 + pairing_status 반환. 미존재 시 `404`. |
+| `GET` | `/admin/payment-orders/{order_id}` | 결제 주문 단위로 PAYMENT/RECEIVE 쌍 전체를 조회할 때 | 주문 정보 + 연결된 원장 엔트리 목록 반환. 미존재 시 `404`. |
+| `GET` | `/admin/wallets/{wallet_id}/tx` | 특정 지갑의 거래 이력을 시간순으로 조회할 때 | 거래 목록 반환. 없어도 빈 리스트로 `200`. |
 
 `GET /admin/tx/{tx_id}` 응답 규칙
 

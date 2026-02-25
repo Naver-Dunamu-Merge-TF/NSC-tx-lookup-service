@@ -8,6 +8,53 @@
 
 ## 1. 전체 구조 한눈에 보기
 
+### 서비스 필요성과 핵심 접근법
+
+이 서비스는 두 가지 운영 문제를 해결하기 위해 설계됐다.
+
+---
+
+#### 문제 1 — OLTP 부하 격리
+
+관리자 조회는 OLTP 기준으로 무거운 연산이다. `tx_id` 단건도 여러 테이블 JOIN이 필요하고, 지갑·기간 기반 범위 조회는 대용량 스캔으로 이어진다. 이 쿼리를 결제 처리 트래픽과 같은 DB에서 실행하면 운영 DB에 직접 부하가 생기고 결제 처리 지연으로 이어질 수 있다.
+
+**해결 — 파생 저장소(Derived Store) + 읽기 경로 분리**
+
+```
+쓰기 경로: OLTP DB → Kafka → [Sync Consumer] → Backoffice DB
+읽기 경로:                                      Backoffice DB → [Admin API]
+```
+
+- Backoffice DB는 조회에 최적화된 **파생(read-only derived) 저장소**다. OLTP가 원본(source of truth)이고, Consumer는 이벤트로 파생 상태를 동기화한다.
+- Admin API는 Backoffice DB만 조회한다. OLTP에 접근하지 않는다.
+- 파생 저장소 특성상 **최종적 일관성(eventual consistency)**이 적용된다. 이벤트 전달부터 DB 반영까지 지연이 존재하며, 이를 SLO로 관리한다: **데이터 신선도 p95 < 5s**.
+
+---
+
+#### 문제 2 — 이벤트 페어링 타이밍
+
+결제 1건은 이중 분개(double-entry) 구조로 원장에 기록된다.
+
+```
+하나의 결제 = TX-P-001 (PAYMENT, 송신자 지갑 출금)
+            + TX-R-001 (RECEIVE, 수신자 지갑 입금)
+              ↑ 둘 다 related_id = ORD-001 (= order_id) 로 연결됨
+```
+
+두 이벤트는 같은 결제에서 비롯되지만 Kafka를 통해 **독립적으로 전달**되므로 도착 순서·시각이 보장되지 않는다. PAYMENT만 수신된 상태에서 조회하면 RECEIVE가 아직 미전달인지 실패한 건지 판단할 수 없다.
+
+**해결 — `related_id` 기반 pairing_status 추적**
+
+Consumer는 원장 이벤트 수신 시마다 같은 `related_id`를 가진 반대편 엔트리의 존재를 DB에서 확인하고 `bo.payment_ledger_pairs`에 페어링 상태를 기록한다.
+
+| `pairing_status` | 조건 | 의미 |
+|------------------|------|------|
+| `COMPLETE` | PAYMENT + RECEIVE 두 엔트리 모두 존재 | 정상 처리 완결 |
+| `INCOMPLETE` | 한쪽 엔트리만 존재 | 이벤트 지연 가능성. 재조회 권장 |
+| `UNKNOWN` | `related_id` 없거나 `related_type ≠ PAYMENT_ORDER` | 페어링 개념 없는 거래 유형 |
+
+**회귀 방지 (Regression Guard)**: 한 번 `COMPLETE`가 된 페어링은 이후 오래된 이벤트가 재처리돼도 `INCOMPLETE`로 되돌아가지 않는다. `should_update_pair()` 로직(`src/consumer/pairing.py`)이 `COMPLETE → INCOMPLETE` 업데이트를 차단한다.
+
 ### 서비스 범위
 
 ```
