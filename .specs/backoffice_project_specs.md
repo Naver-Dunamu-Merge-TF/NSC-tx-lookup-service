@@ -1,269 +1,248 @@
-# Backoffice Serving Project Specs (DB + Admin API) (v0.1)
+# Backoffice Serving Project Specs (Code-Aligned Hybrid)
 
-> **목표**: SRS FR-ADM-02(거래 내역 추적)를 위해 `tx_id` 단건 조회를 **초 단위**로 제공하는 Serving Layer를 구축한다.
+작성 기준일: 2026-02-25  
+기준 브랜치: `dev` (현재 워킹트리 코드)
+
+> 목적: FR-ADM-02(관리자 거래 추적)를 위해 `tx_id` 중심 조회를 Backoffice Serving Layer에서 안정적으로 제공한다.
 >
-> **핵심 아이디어**: Admin 조회는 Databricks/ADLS가 아니라, **Backoffice DB(인덱스) + Admin API**로 서빙한다.
->
-> **연계 문서**
-> - DB/API 상세 설계: `.specs/backoffice_db_admin_api.md`
-> - 데이터 동기화(OLTP→BO) 설계: `.specs/backoffice_data_project.md`
-> - 아키텍처 참고(비범위/보조 경로): `.specs/reference/entire_architecture.md`
+> 연계 SSOT
+> - API/DB 상세: `.specs/backoffice_db_admin_api.md`
+> - 동기화/이벤트 상세: `.specs/backoffice_data_project.md`
+> - 요구사항 원문: `.specs/requirements/SRS - Software Requirements Specification.md`
 
 ---
 
-## 1) 범위 정의
+## 0) 문서 운영 원칙 (Hybrid)
 
-### 1.1 In-scope
+이 문서는 항목을 다음 3가지 상태로 분리해 기록한다.
 
-- Admin API(REST)
-  - `GET /admin/tx/{tx_id}`: 단건 조회(FR-ADM-02)
-  - (권장) `GET /admin/payment-orders/{order_id}`: 결제 오더 기준 조회
-  - (권장) `GET /admin/wallets/{wallet_id}/tx`: 지갑 기준 최근 거래
-- Backoffice DB(Serving DB) 스키마/인덱스/마이그레이션
-- OLTP→Backoffice DB 동기화(이벤트/CDC) + 멱등/재처리
-- 인증/인가(RBAC), 감사로그, 운영 모니터링/알림
+1. **As-Is (코드 구현)**
+- 현재 저장소 코드로 즉시 검증 가능한 동작/계약
 
-### 1.2 Out-of-scope
+2. **Target (To-Be)**
+- 아직 미구현이거나 운영 전환 단계에서 확정할 목표 상태
 
-- 결제/정산 트랜잭션 처리(Freeze/Settle/Rollback)
-- Lakehouse(데이터브릭스) 통제 산출물 서빙
-- 고객-facing 실시간 API(관리자 전용)
+3. **Out of Scope / Reserved**
+- 현재 프로젝트 범위 밖이거나 향후 확장 예약 항목
 
 ---
 
-## 2) 성공 기준(DoD)
+## 1) 프로젝트 목표
 
-- `GET /admin/tx/{tx_id}`가 p95 200ms 이내(내부망 기준, 조정 가능)
-- OLTP 커밋 이후 Backoffice 반영 p95 5초 이내(초 단위 목표)
-- 장애 시에도 데이터 정합성이 깨지지 않고 재처리로 수렴(멱등)
-- Cloud-Secure(운영형) 기준 모든 요청이 인증/인가되고, 조회 요청 감사로그가 남는다
+### As-Is (코드 구현)
 
----
+- Admin API는 Backoffice DB를 조회해 관리자 조회 기능을 제공한다.
+- Sync Consumer는 이벤트를 소비해 Backoffice DB를 멱등 upsert한다.
+- Backoffice DB는 조회 최적화 목적의 **파생(read-optimized) 저장소**로 운영된다.
 
-## 3) 핵심 결정(Decision Lock)
+### Target (To-Be)
 
-### 3.1 tx_id / 페어링(방법 2)
+- Cloud-Secure 전환 이후에도 동일 API 계약/지표/SLO를 유지한다.
+- 운영 자동화(E3)에서 배포-검증-복구 루프를 표준화한다.
 
-- `tx_id`는 **원장 엔트리(행) ID**
-- 결제 더블엔트리(PAYMENT/RECEIVE)는 서로 다른 `tx_id`
-- 페어링 키는 `related_id`(권장: `payment_orders.order_id`)
+### Out of Scope / Reserved
 
-> 이 결정이 바뀌면(DB 스키마 변경 포함) API/DB 모델이 크게 달라진다.
-
-### 3.2 시간대
-
-- API/DB 저장은 UTC 기준을 기본으로 한다.
-- 화면 표시는 필요에 따라 KST 변환(프론트/클라이언트 책임 가능).
-
-### 3.3 Backoffice DB 포지셔닝(고정)
-
-- Backoffice DB는 **`tx_id`/`order_id` 조회를 위한 Read 인덱스(derived store)**로 고정한다.
-- Admin/운영 업무의 “쓰기 트랜잭션”은 OLTP에서만 수행하며, Backoffice DB에는 **Admin API/Sync Consumer만 write**한다.
-
-### 3.4 구현 스택/정책(자체 결정)
-
-- **Admin API**: Python + FastAPI
-- **Sync Consumer**: Python(커스텀 서비스)
-- **Serving DB**: PostgreSQL (로컬 컨테이너 / Azure Database for PostgreSQL)
-- **페어링 테이블**: `bo.payment_ledger_pairs`를 기본 유지(부분 완성 허용)
-- **응답 정책**: 페어링 불완전 시에도 응답 반환 + `pairing_status`/`data_lag_sec` 제공(상세는 DB/API 설계 문서)
-
-### 3.5 협의 전 가정(임시 결정)
-
-> 아래 항목은 **협의 전까지 기본값**으로 적용한다. 합의 시 업데이트한다.
-> F3-1(2026-02-24)에서 상태/버전 계약 표준화 기준은 `DEC-229`, `DEC-230`, `DEC-231`로 고정됐다.
-
-- **`tx_id` 의미**: 원장 엔트리(행) ID로 고정 → 페어링은 `related_id` 기준(방법 2)
-- **`related_id/related_type`**: 기본은 `payment_orders.order_id`; `related_type` 없으면 조인 성공 시 `PAYMENT_ORDER`, 실패 시 `UNKNOWN`
-- **`status` 매핑(v2 운영 표준 동결)**: 원문 상태는 그대로 노출, `status_group(SUCCESS/FAIL/IN_PROGRESS/UNKNOWN)`는 현행 v1 매핑표로 계산한다 — 결정: `DEC-229`, `DEC-206` (`.specs/decision_open_items.md`)
-- **`updated_at/version` 제공률 기준**: topic(`ledger`, `payment_order`)별 7일 롤링 제공률 `>=99%`를 유지한다 — 결정: `DEC-230` (`.specs/decision_open_items.md`)
-- **계약 성숙도 기준선(완화)**: `core_violation_rate<=0.1%`, `alias_hit_ratio<=40%`, `version_missing_ratio<=5%` (7일 롤링) — 결정: `DEC-231` (`.specs/decision_open_items.md`)
-- **`updated_at/version` 부재 시 런타임 처리**: `ingested_at` 기준 LWW로 수렴 + `version_missing_cnt` 지표 관측
-- **SLO/보안 기본값**: 데이터 신선도 p95 5초, API p95 200ms, RBAC(`ADMIN_READ`, `ADMIN_AUDIT`) + 감사로그 + PII 최소화
-- **Azure Monitor KQL 기준(F3-2)**: workspace 기반 쿼리는 `AppMetrics` 스키마(`Name`, `Sum`, `Max`, `ItemCount`, `Properties`, `TimeGenerated`)를 기준으로 한다 — 결정: `DEC-232`
-- **F3-2 튜닝 정책**: `DEC-202` 임계치/심각도를 3일 관측 전까지 유지하고, 오탐/미탐 근거가 확인될 때만 조정한다 — 결정: `DEC-233`
-- **알림 채널/활성화 정책(F3-2)**: Action Group 수신 채널은 플랫폼팀 관리값을 사용하고, Scheduled Query Rules는 생성 즉시 `enabled=true`로 운영 적용한다 — 결정: `DEC-234`
+- 결제/정산 쓰기 트랜잭션(Freeze/Settle/Rollback)
+- 고객-facing API
+- 프로듀서(이벤트 발행) 구현
 
 ---
 
-## 4) 아키텍처(요약)
+## 2) 책임 경계
 
-- OLTP DB(SSOT)
-- Kafka(또는 CDC) — 이벤트 스트림
-- Consumer(동기화 서비스)
-- Backoffice DB(Serving DB)
-- Admin API(REST)
-- 모니터링/알림(로그, 메트릭, 트레이싱)
+### As-Is (코드 구현)
 
-상세는 `.specs/backoffice_db_admin_api.md` 및 `.specs/backoffice_data_project.md` 참고.
+- 본 저장소는 **consumer-only**다. 이벤트 발행 책임은 업스트림 서비스에 있다.
+- Backoffice DB 쓰기 경로는 다음 두 컴포넌트로 제한한다.
+  - Sync Consumer: 동기화/upsert/DLQ
+  - Admin API: 감사로그 저장(`bo.admin_audit_logs`)
+- 운영 조회는 Admin API를 통해 수행하며, DB 직접 조회는 운영 절차로만 허용한다.
 
----
+### Target (To-Be)
 
-## 5) 데이터 모델(요약)
+- Cloud-Secure에서 네트워크/권한 정책으로 위 책임 경계를 강제한다.
 
-Serving DB는 “조회 최적화”를 위해 필요한 데이터를 최소로 복제/정규화한다.
+### Out of Scope / Reserved
 
-- `bo.ledger_entries` (PK: `tx_id`)
-- `bo.payment_orders` (PK: `order_id`)
-- `bo.payment_ledger_pairs` (UK: `payment_order_id`) — 권장(페어링 가속)
-- (옵션) `bo.admin_tx_search` 뷰/테이블
+- 카프카/모니터링 인프라 프로비저닝 자동화 자체는 인프라팀 소유다.
 
 ---
 
-## 6) API 설계 원칙
+## 3) 범위 정의
 
-- 단건 조회는 항상 Backoffice DB에서 처리(클러스터/웨어하우스 의존 금지)
-- 페어링이 불완전한 경우에도 응답을 반환하되, `paired_tx_id`/`receiver_wallet_id` 등을 NULL로 둘 수 있다
-- 응답에는 “데이터 최신성/커버리지” 힌트를 포함하는 것을 권장
-  - 예: `data_lag_sec`, `pairing_status`(COMPLETE/INCOMPLETE/UNKNOWN)
+### As-Is (코드 구현)
 
----
+- Admin 조회 API 3종
+  - `GET /admin/tx/{tx_id}`
+  - `GET /admin/payment-orders/{order_id}`
+  - `GET /admin/wallets/{wallet_id}/tx`
+- Backoffice DB 스키마/마이그레이션
+  - `bo.ledger_entries`
+  - `bo.payment_orders`
+  - `bo.payment_ledger_pairs`
+  - `bo.admin_audit_logs`
+  - `bo.consumer_dlq_events`
+- Sync Consumer
+  - profile 기반 topic 매핑
+  - alias/core_required 정규화
+  - 멱등 upsert + pairing + DLQ
+- 관측/감사
+  - API/DB/Consumer 메트릭
+  - 조회 감사로그 저장
 
-## 7) 보안/감사(필수)
+### Target (To-Be)
 
-- 인증: OIDC/JWT(사내 SSO)
-- 인가: RBAC (`ADMIN_READ`, `ADMIN_AUDIT` 등)
-- 감사로그: `who/when/what(tx_id or order_id)/result_count/ip/user_agent`
-- `local/dev`에서는 개발 편의를 위해 `AUTH_MODE=disabled`를 허용하되, 운영형에서는 금지한다
-- 인증/인가 실패(401/403)는 라우트 진입 전 차단될 수 있으므로 DB 감사로그 대신 API/게이트웨이 로그로 추적한다
-- 비밀번호/credential 데이터는 절대 적재/노출 금지
+- E2/E3 단계에서 보안형 운영 승격, 컷오버 자동화, 정기 리허설을 고도화한다.
 
----
+### Out of Scope / Reserved
 
-## 8) 관측/운영(필수)
-
-### 8.1 API 지표
-
-- latency(p50/p95/p99), error rate(4xx/5xx), QPS
-- slow query 상관관계(트레이싱)
-
-### 8.2 동기화 지표
-
-- consumer lag, DLQ rate
-- end-to-end freshness(p95)
-- pair completion rate / incomplete age
-
-### 8.3 알림 운영 적용 기준(F3-2)
-
-- 기준 문서: `docs/ops/f3_2_slo_alerts_runbook.md`
-- 규칙 소스: `docker/observability/alert_rules.yml` (8개 규칙)
-- 대시보드 연결 증빙은 포털 캡처 대신 `AppMetrics` KQL 결과 로그로 저장한다.
-- severity 정책은 `DataFreshnessHigh`, `DbReplicationLagHigh`만 `critical`, 나머지는 `warning`으로 유지한다(`DEC-202`, `DEC-233`).
-- Action Group 수신 채널(email/Teams/webhook) 값은 플랫폼팀에서 제공받아 `ACTION_GROUP_ID` 인터페이스로만 관리한다(`DEC-234`).
+- Databricks/Lakehouse 산출물 서빙
+- Admin UI 자체 구현
 
 ---
 
-## 9) 단계별 출시 계획(개정)
+## 4) 성공 기준 (상위)
 
-### 9.1 기능 성숙 단계(서비스 기능 축)
+### As-Is (코드 구현)
 
-1) **Phase F1 — Read-only MVP**
-   - BO DB 스키마 + backfill + 증분 동기화
-   - `GET /admin/tx/{tx_id}` 제공(페어링은 best-effort)
-2) **Phase F2 — Pairing 강화**
-   - `bo.payment_ledger_pairs` 확정 테이블 도입
-   - 페어링 품질 지표/알림
-3) **Phase F3 — SLO 강화**
-   - out-of-order/중복/재처리 정책 확정
-   - status 변경 시각/버전 필드 정착
+- 기능 계약
+  - `tx_id` 미존재 시 `404`
+  - `order_id` 미존재 시 `404`
+  - wallet 조회는 빈 목록이어도 `200`
+- 페어링 계약
+  - `pairing_status`는 `COMPLETE | INCOMPLETE | UNKNOWN`로 응답
+- 동기화 계약
+  - at-least-once 소비를 멱등 upsert로 수렴
+  - LWW 규칙: `updated_at > source_version > (둘 다 없을 때 ingested_at)`
+- 감사 계약
+  - 성공/404 조회는 `bo.admin_audit_logs`에 기록
+  - `result_count` 포함
 
-### 9.2 환경 승격 단계(배포/인프라 축)
+### Target (To-Be)
 
-1) **Phase E1 — Cloud-Test(폐기형, Public 허용)**
-   - 테스트 전용 리소스 생성(Event Hubs/ACA/PostgreSQL)
-   - synthetic 이벤트 기반 E2E 스모크 검증
-   - `Destroy -> Recreate` 재현성 검증
-2) **Phase E2 — Cloud-Secure(운영형, 보안 네트워크)**
-   - 보안용 별도 리소스 생성(인플레이스 전환 금지)
-   - Private Endpoint/VNet/Firewall + Key Vault/Managed Identity 전환
-   - backfill + 증분 동기화 재실행 후 컷오버
-3) **Phase E3 — 운영 자동화**
-   - CI/CD 게이트, 스모크 자동화, 재처리/복구 체계 확정
+- 운영 SLO(목표)
+  - API p95 < 200ms
+  - 데이터 신선도 p95 < 5s
+- Cloud-Secure 게이트 기준의 재현 가능한 E2E 운영 증빙 확보
 
----
+### Out of Scope / Reserved
 
-## 10) 개발 환경/배포 전략(초안)
-
-> 목적: 로컬에서 빠르게 개발/테스트하고, Azure에 동일한 형태로 배포/운영한다.
-
-### 10.1 프로젝트 분리(권장)
-
-- `bo-admin-api`(Serving): Admin API + DB 마이그레이션/스키마
-- `bo-sync-consumer`(Data): 이벤트/CDC Consumer(동기화) + DLQ/재처리 도구
-- `bo-infra`(IaC): Azure 리소스(네트워크/DB/이벤트/컴퓨트/모니터링) 프로비저닝
-
-> 단, 초기에는 운영 단순화를 위해 `bo-admin-api`와 `bo-sync-consumer`를 단일 repo/단일 배포 파이프라인로 시작해도 된다.
-
-### 10.2 로컬 개발(Local)
-
-권장 방식: Docker 기반으로 “의존성”을 로컬에서 재현하고, 애플리케이션은 로컬 실행(또는 컨테이너 실행)한다.
-
-- 의존성(로컬)
-  - Backoffice DB: PostgreSQL(컨테이너)
-  - 이벤트 버스: Kafka 호환 브로커(컨테이너) 또는 로컬 mock(선택)
-- 개발 흐름(예시)
-  1) `docker compose up`으로 DB/브로커 기동
-  2) 마이그레이션 적용(스키마 생성)
-  3) Consumer 실행(샘플 이벤트 publish 또는 backfill 실행)
-  4) Admin API 실행(단건 조회로 검증)
-- 로컬 테스트
-  - Unit: 페어링/응답 조립 로직(순수 함수)
-  - Integration: “이벤트 → Consumer upsert → API 조회” E2E(컨테이너 기반)
-
-### 10.3 Azure 배포(권장 레퍼런스)
-
-> 제품/조직 상황에 따라 AKS/App Service 등으로 대체 가능. 여기서는 관리 난이도가 낮은 구성을 기본으로 둔다.
-
-- **Cloud-Test(Phase E1)** — Phase 8에서 검증 완료, 폐기 대상 (프로비저닝 스크립트는 인프라팀 이관 후 제거됨)
-  - 데이터베이스: Azure Database for PostgreSQL(Flexible Server, test profile)
-  - 이벤트 버스: Azure Event Hubs(Kafka endpoint, isolated namespace)
-  - 실행 환경: Azure Container Apps
-  - 시크릿: SAS/env 주입 우선(테스트 속도 우선)
-  - 관측: 최소 App Insights + Log Analytics 연결
-- **Cloud-Secure(Phase E2)** — 리소스 소유 모델 적용
-  - 데이터베이스: Azure Database for PostgreSQL(Flexible Server, secure profile) — **서비스 전용**
-  - 이벤트 버스: 기존 Event Hubs namespace 활용, 토픽만 소유 — **RG 공유**
-  - 실행 환경: AKS(RG 공유 클러스터, namespace 분리 배포) — **RG 공유**
-  - 이미지 레지스트리: ACR — **RG 공유**
-  - 시크릿: Key Vault(RG 공유) + Managed Identity(서비스 전용)
-  - 네트워크: Private Endpoint/VNet/Firewall 기반
-  - 관측: App Insights + Log Analytics — **RG 공유**
-
-> **리소스 소유 모델**: 리소스 생성은 인프라팀이 수행한다. 이 레포는 네이밍 컨벤션과 리소스 요구사항만 정의한다.
-> PostgreSQL만 서비스 전용으로 요청한다. AKS/ACR/Key Vault/App Insights/Log Analytics는 RG 공유 리소스를 활용하며,
-> 서비스 격리는 namespace/리포지토리/secret prefix/cloud_roleName으로 구분한다.
-> Event Hubs namespace는 이미 존재하며 토픽(hub)만 이 서비스가 소유한다.
-> 네이밍 컨벤션 상세는 `.specs/infra/cloud_migration_rebuild_plan.md` 3.3항 참조.
->
-> **이벤트 발행 책임**: 카프카 프로듀서 코드는 업스트림 서비스(CryptoSvc, AccountSvc, CommerceSvc)가 소유한다.
-> tx-lookup-service는 컨슈머 전용이며, 이벤트 계약(스키마)은 `configs/topic_checklist.md`에서 정의한다.
-> 카프카/모니터링 인프라 프로비저닝은 인프라팀이 수행한다.
-
-### 10.4 환경 분리 / 설정 관리
-
-- `local`(Docker Compose) + Azure 단일 소스(환경 분리 없음)
-- 설정은 12-factor 원칙(환경변수/시크릿)로 관리하고, 저장소에 자격 증명은 커밋하지 않는다.
-- 네이밍 컨벤션: `.specs/infra/cloud_migration_rebuild_plan.md` 3.3항 참조
-
-### 10.5 CI/CD(초안)
-
-- PR: lint + unit test + (가능하면) docker 기반 integration test
-- main merge:
-  - 컨테이너 이미지 빌드/스캔 → ACR push
-  - IaC 적용(필요 시)
-  - DB 마이그레이션(배포 전 단계, 실패 시 중단)
-  - ACA/AKS에 배포(rolling)
-  - smoke test(`GET /admin/tx/{tx_id}`) 후 완료
+- 본 문서는 벤치마크 수치의 실시간 모니터링 결과를 보관하지 않는다.
 
 ---
 
-## 11) 오픈 이슈(협의 필요)
+## 5) 상위 아키텍처
 
-> F3-1 관련 항목(status 표준, `updated_at/version` 제공률, 계약 성숙도 기준)은
-> `DEC-229`, `DEC-230`, `DEC-231`로 결정 완료.
-> F3-2 알림 운영 적용 기준(AppMetrics, 3일 튜닝, Action Group 인터페이스)은
-> `DEC-232`, `DEC-233`, `DEC-234`로 결정 완료.
+### As-Is (코드 구현)
 
-- `amount_signed` SSOT(저장 vs 파생) 및 type enum 표준
-- `related_id` 공백/다중 도메인(`related_type`) 처리
-- 환불/취소/정정(역분개) 표기/페어링 규칙
+```text
+OLTP/Upstream Producer -> Kafka/Event Hubs -> Sync Consumer -> Backoffice DB -> Admin API
+```
+
+- Consumer는 profile 기준 토픽을 subscribe하고 payload를 정규화/검증 후 DB upsert한다.
+- Admin API는 `ledger_entries + payment_orders + payment_ledger_pairs` 조합으로 응답을 구성한다.
+
+### Target (To-Be)
+
+- Cloud-Secure 환경에서 동일 데이터 흐름을 private network + managed identity 모델로 승격한다.
+
+### Out of Scope / Reserved
+
+- CDC 엔진 세부 운영 정책(예: Debezium 운영 토폴로지)
+
+---
+
+## 6) 보안/인가/감사 정책
+
+### As-Is (코드 구현)
+
+- 인증 모드
+  - `AUTH_MODE=disabled` (로컬 개발)
+  - `AUTH_MODE=oidc` (JWT 검증)
+- 인가
+  - `ADMIN_READ` 또는 `ADMIN_AUDIT` 보유 시 조회 허용
+- 감사로그
+  - API 조회 시 `who/when/what/result/status_code/duration/result_count` 저장
+  - `401/403`은 라우트 진입 전 차단될 수 있어 DB 감사로그 대신 인증 계층 로그로 추적
+
+### Target (To-Be)
+
+- 운영형에서 `AUTH_MODE=disabled` 금지
+- OIDC/RBAC/감사 추적을 운영 게이트 표준으로 고정
+
+### Out of Scope / Reserved
+
+- IAM 조직 정책 자체 정의
+
+---
+
+## 7) 관측/운영 정책
+
+### As-Is (코드 구현)
+
+- API 지표: `api_request_latency_seconds`, `api_requests_total`, `api_requests_inflight`
+- DB 지표: `db_query_latency_seconds`, `db_queries_total`, `db_pool_*`, `db_replication_lag_seconds`
+- Consumer 지표: `consumer_messages_total`, `consumer_event_lag_seconds`, `consumer_kafka_lag`, `consumer_freshness_seconds`, `consumer_dlq_total`
+- 계약/품질 지표: `consumer_contract_*`, `consumer_version_missing_total`, `pairing_*`
+- 알림 레퍼런스: `docker/observability/alert_rules.yml`
+
+### Target (To-Be)
+
+- E2/E3에서 알림 튜닝/운영 절차를 정기 회귀(리허설)와 연동한다.
+
+### Out of Scope / Reserved
+
+- 본 문서에 모니터링 쿼리 결과 원문을 누적 저장하지 않는다.
+
+---
+
+## 8) 단계별 상태 (F/E 축)
+
+### As-Is (코드 구현 + 로드맵 정렬)
+
+- 기능 축
+  - F1: Read-only MVP 동작
+  - F2: Pairing 강화 동작
+  - F3: 품질/운영 게이트 진행 중
+- 환경 축
+  - E1: Cloud-Test 검증 이력 존재
+  - E2: Cloud-Secure 승격 진행 중
+  - E3: 운영 자동화 확장 예정
+
+> 세부 상태/증빙은 `.roadmap/implementation_roadmap.md`를 따른다.
+
+### Target (To-Be)
+
+- E2 완료 후 운영형 컷오버 기준을 고정하고 E3 자동화를 마무리한다.
+
+### Out of Scope / Reserved
+
+- 본 문서에서 스프린트 단위 일정은 관리하지 않는다.
+
+---
+
+## 9) 문서 소유권 분리
+
+### As-Is (코드 구현)
+
+- 이 문서(`backoffice_project_specs.md`): 상위 정책/범위/책임/승격 기준
+- `.specs/backoffice_db_admin_api.md`: API + DB 계약 SSOT
+- `.specs/backoffice_data_project.md`: Consumer + 이벤트 동기화 계약 SSOT
+
+### Target (To-Be)
+
+- 중복 규칙은 하위 SSOT 1곳에만 상세화하고 나머지는 링크 참조로 유지한다.
+
+### Out of Scope / Reserved
+
+- 단일 문서에 모든 구현 세부를 재중복 기술하지 않는다.
+
+---
+
+## 10) Open Issues (실제 미결)
+
+1. 환불/취소/정정(역분개) 타입 확장 시 pairing 규칙을 어떻게 일반화할지
+2. `related_type` 다중 도메인 확장 시 `payment_ledger_pairs` 모델을 분리/확장할지
+3. `PaymentLedgerPaired` 확정 이벤트를 도입할지(현재는 consume 미지원, reserved)
+4. Cloud-Secure 최종 컷오버 시 운영 승인 게이트 산출물 표준을 어디까지 자동화할지
+

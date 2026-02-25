@@ -1,264 +1,327 @@
-# Backoffice DB + Admin API 설계 초안 (Serving Layer) — FR-ADM-02
+# Backoffice DB + Admin API Specs (Code-Aligned Hybrid)
 
-> **연계 문서**
-> - 프로젝트 스펙(Serving): `.specs/backoffice_project_specs.md`
-> - 데이터 프로젝트(동기화): `.specs/backoffice_data_project.md`
-> - 요구사항(원본/참고): `.specs/requirements/SRS - Software Requirements Specification.md` (FR-ADM-02)
-> - 아키텍처 참고(비범위/보조 경로): `.specs/reference/entire_architecture.md`
+작성 기준일: 2026-02-25  
+기준 브랜치: `dev` (현재 워킹트리 코드)
+
+> 이 문서는 Admin API + Serving DB 계약의 SSOT다.
 >
-> **목표**: `tx_id` 기반 **초 단위(near real-time)** 거래 추적 조회(관리자 화면/툴)
+> 연계 문서
+> - 상위 정책: `.specs/backoffice_project_specs.md`
+> - 동기화/이벤트: `.specs/backoffice_data_project.md`
 
 ---
 
-## 1) 범위 / 비범위
+## 0) 문서 운영 원칙 (Hybrid)
 
-### 1.1 범위(In-scope)
-
-- FR-ADM-02: `tx_id`로 조회 시 아래 정보를 반환
-  - 시간(`event_time`)
-  - 보낸 사람/받는 사람(지갑 ID 기준 `sender_wallet_id`, `receiver_wallet_id`)
-  - 상태(`status`: 성공/실패/진행)
-- 운영 요구를 위해 “결제 1건”을 구성하는 원장 엔트리(예: PAYMENT/RECEIVE)를 함께 조회 가능
-
-### 1.2 비범위(Out-of-scope)
-
-- 결제/정산의 트랜잭션 처리(Freeze/Settle/Rollback) 자체
-- Databricks 산출물(FR-ADM-01/03, 통제 지표 등) 서빙
+1. **As-Is (코드 구현)**: `src/api/*`, `src/db/*`, `migrations/*` 기준 현재 동작
+2. **Target (To-Be)**: 미구현이지만 향후 도입할 목표
+3. **Out of Scope / Reserved**: 현재 범위 밖 또는 예약 항목
 
 ---
 
-## 2) 핵심 결정(현재 스키마 기준)
+## 1) 도메인 용어 사전
 
-### 2.1 `tx_id` 의미
+### As-Is (코드 구현)
 
-- `transaction_ledger.tx_id`는 PK이므로 Backoffice에서도 **“원장 엔트리(행) ID”**로 취급한다.
+- `tx_id`: `bo.ledger_entries` PK, 원장 엔트리(행) ID
+- `related_id`: 페어링 조인 키(일반적으로 `payment_orders.order_id`)
+- `pairing_status`: `COMPLETE | INCOMPLETE | UNKNOWN`
+- `status_group`: `SUCCESS | FAIL | IN_PROGRESS | UNKNOWN`
+- `source_version`: 이벤트 버전 메타데이터
+- `ingested_at`: Backoffice DB에 반영된 시각
 
-### 2.2 PAYMENT/RECEIVE 페어링 방식(방법 2 가정)
+### Target (To-Be)
 
-동일 결제 건에 대해:
+- 환불/정정 도메인 확장 시 `related_type`별 용어 집합을 분리할 수 있다.
 
-- 구매자 엔트리: `PAYMENT` (−amount)
-- 판매자 엔트리: `RECEIVE` (+amount)
+### Out of Scope / Reserved
 
-두 엔트리는 **서로 다른 `tx_id`**를 가지며, **동일 `related_id`**(권장: `payment_orders.order_id`)로 연결한다.
-
-> 결론: Admin API는 “단건 tx_id 조회”를 받아도, 필요 시 `related_id` 기준으로 반대편 엔트리를 찾아 **보낸 사람/받는 사람을 구성**한다.
-
----
-
-## 3) 아키텍처 개요
-
-### 3.1 구성 요소
-
-- **OLTP DB(서비스 DB)**: 결제/원장 기록(SSOT)
-  - `transaction_ledger`, `payment_orders` 등
-- **Event/CDC 파이프라인**: OLTP 변경을 초 단위로 전달
-  - 옵션 A) Kafka 이벤트(서비스에서 publish)
-  - 옵션 B) DB CDC(Debezium 등) → Kafka
-- **Backoffice DB(Serving DB)**: Admin 조회 최적화 RDBMS (PostgreSQL/Azure SQL)
-- **Admin API**: 관리자 조회 API(REST), RBAC/감사로그 포함
-
-### 3.2 데이터 흐름(권장)
-
-1) 서비스가 OLTP에 커밋(결제/원장 엔트리 생성/상태 변경)  
-2) 변경 이벤트가 Kafka(또는 CDC)로 전달  
-3) Backoffice Consumer가 Backoffice DB에 **Upsert(멱등)**  
-4) Admin API가 Backoffice DB를 조회하여 응답
+- 결제 도메인 원천 상태 머신(업스트림 내부 상태전이) 정의
 
 ---
 
-## 4) Backoffice DB 설계(초안)
+## 2) Admin API 계약
 
-> 네이밍은 예시이며, 실제 DB는 별도 DB 또는 스키마 `bo`로 분리 권장.
+## 2.1 엔드포인트 목록
 
-### 4.1 테이블: `bo.ledger_entries`
+### As-Is (코드 구현)
 
-원장 엔트리(행) 단위 저장. OLTP `transaction_ledger`를 중심으로 “조회에 필요한 최소 필드”를 정규화한다.
+1. `GET /admin/tx/{tx_id}`
+2. `GET /admin/payment-orders/{order_id}`
+3. `GET /admin/wallets/{wallet_id}/tx`
 
+모든 엔드포인트는 인증/인가 의존성(`require_admin_read`)을 거친다.
+
+### Target (To-Be)
+
+- 필요 시 페이지네이션/정렬 옵션 확장
+
+### Out of Scope / Reserved
+
+- 배치 조회 POST API
+
+---
+
+## 2.2 `GET /admin/tx/{tx_id}`
+
+### As-Is (코드 구현)
+
+상태 코드
+- `200`: 조회 성공
+- `404`: `tx_id` 미존재
+- `401`: 인증 실패(JWT 누락/검증 실패)
+- `403`: 역할 부족
+
+조회 조립 순서
+1. `LedgerEntry`를 `tx_id`로 조회
+2. `PaymentOrder`, `PaymentLedgerPair`를 `related_id` 기준 outer join
+3. pair가 없거나 incomplete면, 같은 `related_id`에서 **반대 entry_type** peer를 fallback 조회
+
+응답 필드
+- `tx_id`, `event_time`, `entry_type`, `amount`, `amount_signed`
+- `status`(payment order 원문), `status_group`
+- `sender_wallet_id`, `receiver_wallet_id`
+- `related.related_id`, `related.related_type`
+- `paired_tx_id`, `merchant_name`
+- `pairing_status`, `data_lag_sec`
+
+응답 정책
+- `related_id` 없거나 `related_type != PAYMENT_ORDER`면 `pairing_status=UNKNOWN`
+- `PAYMENT`/`RECEIVE` 양쪽 tx가 있으면 `COMPLETE`, 아니면 `INCOMPLETE`
+- `data_lag_sec = now - max(ingested_at, event_time)` (초 단위, 음수 방지)
+
+### Target (To-Be)
+
+- 상태 원인 코드(error reason) 등 운영 보조 필드 확장 가능
+
+### Out of Scope / Reserved
+
+- 거래 원장 원문 payload 전체 반환
+
+---
+
+## 2.3 `GET /admin/payment-orders/{order_id}`
+
+### As-Is (코드 구현)
+
+상태 코드
+- `200`: 조회 성공
+- `404`: `order_id` 미존재
+- `401/403`: 인증/인가 실패
+
+동작
+- `PaymentOrder`를 `order_id`로 조회
+- `LedgerEntry`를 `related_id=order_id`로 조회(`event_time DESC, tx_id` 정렬)
+- `PaymentLedgerPair`를 `payment_order_id=order_id`로 조회
+
+응답
+- `order`: 주문 상세(`order_id`, `user_id`, `merchant_name`, `amount`, `status`, `status_group`, `created_at`)
+- `ledger_entries`: 엔트리 목록
+- `pairing_status`:
+  - pair complete면 `COMPLETE`
+  - pair 미완성 + 엔트리 존재면 `INCOMPLETE`
+  - 엔트리도 없으면 `UNKNOWN`
+
+### Target (To-Be)
+
+- 기간/상태 필터 지원
+
+### Out of Scope / Reserved
+
+- 주문 변경 이력 타임라인 API
+
+---
+
+## 2.4 `GET /admin/wallets/{wallet_id}/tx`
+
+### As-Is (코드 구현)
+
+상태 코드
+- `200`: 조회 성공(빈 목록 포함)
+- `401/403`: 인증/인가 실패
+
+쿼리 파라미터
+- `from` (optional, ISO-8601)
+- `to` (optional, ISO-8601)
+- `limit` (default `20`, range `1..100`)
+
+동작
+- `wallet_id` 기준 `LedgerEntry` 조회
+- `from/to`가 있으면 `event_time` 범위 필터 적용
+- `event_time DESC, tx_id` 정렬 후 `limit`
+
+응답
+- `wallet_id`
+- `entries[]` (`LedgerEntryItem`)
+- `count`
+
+### Target (To-Be)
+
+- cursor 기반 페이지네이션
+
+### Out of Scope / Reserved
+
+- 지갑 잔액 계산 API
+
+---
+
+## 3) 응답 계산 규칙
+
+## 3.1 `related_type` 해석
+
+### As-Is (코드 구현)
+
+1. ledger의 `related_type`가 있으면 그대로 사용
+2. 없고 payment order join이 성공하면 `PAYMENT_ORDER`
+3. 둘 다 아니면 `UNKNOWN`
+
+---
+
+## 3.2 `pairing_status` / `paired_tx_id` 계산
+
+### As-Is (코드 구현)
+
+- 입력 소스 우선순위
+1. `payment_ledger_pairs`
+2. peer fallback(`related_id` + 반대 `entry_type`)
+3. 현재 ledger row
+
+- 판단
+- `payment_tx_id`와 `receive_tx_id`가 모두 있으면 `COMPLETE`
+- 하나라도 없으면 `INCOMPLETE`
+- payment order 문맥이 아니면 `UNKNOWN`
+
+- `paired_tx_id`
+- 현재 row가 `PAYMENT`면 `receive_tx_id`
+- 현재 row가 `RECEIVE`면 `payment_tx_id`
+
+---
+
+## 3.3 `status_group` 매핑(v1)
+
+### As-Is (코드 구현)
+
+- `SUCCESS`: `SETTLED`, `COMPLETED`, `SUCCESS`, `SUCCEEDED`, `PAID`
+- `FAIL`: `FAILED`, `CANCELLED`, `CANCELED`, `REJECTED`, `DECLINED`
+- `IN_PROGRESS`: `CREATED`, `PENDING`, `PROCESSING`, `AUTHORIZED`
+- 그 외/NULL: `UNKNOWN`
+
+원문 `status`는 그대로 보존해 응답한다.
+
+---
+
+## 4) 인증/인가/감사
+
+### As-Is (코드 구현)
+
+인증 모드
+- `AUTH_MODE=disabled`: 개발용 헤더(`X-Actor-Id`, `X-Actor-Roles`) 사용
+- `AUTH_MODE=oidc`: Bearer JWT 검증(`issuer`, `audience`, `jwks`)
+
+역할
+- `ADMIN_READ` 또는 `ADMIN_AUDIT` 중 하나 보유 시 허용
+
+감사로그 저장
+- 테이블: `bo.admin_audit_logs`
+- 저장 필드: `actor_id`, `actor_roles`, `action`, `resource_*`, `result`, `status_code`, `request_*`, `duration_ms`, `result_count`, `requested_at`
+
+주의
+- `401/403`은 라우트 진입 전 차단될 수 있으므로 DB 감사로그 대신 인증 계층 로그에서 추적한다.
+
+### Target (To-Be)
+
+- 운영형 환경에서 `AUTH_MODE=disabled` 완전 제거
+
+### Out of Scope / Reserved
+
+- IdP 조직 정책(tenant-level security baseline) 관리
+
+---
+
+## 5) Serving DB 스키마
+
+## 5.1 핵심 조회 테이블
+
+### As-Is (코드 구현)
+
+1. `bo.ledger_entries`
 - PK: `tx_id`
-- 주요 컬럼(예시)
-  - `tx_id` (string, PK)
-  - `wallet_id` (string, index)
-  - `entry_type` (string)
-  - `amount` (decimal)
-  - `amount_signed` (decimal, **가능하면 저장**)  
-    - 업스트림이 제공하지 않으면 `NULL`로 저장(Consumer 파생은 운영 합의 후 고려) — 결정: `DEC-204` (`.specs/decision_open_items.md`)
-  - `related_id` (string, index)
-  - `related_type` (string, nullable)
-  - `event_time` (timestamp, index)
-  - `created_at` (timestamp)
-  - `ingested_at` (timestamp)
+- 주요 컬럼: `wallet_id`, `entry_type`, `amount`, `amount_signed`, `related_id`, `related_type`, `event_time`, `created_at`, `updated_at`, `source_version`, `ingested_at`
+- 인덱스: `related_id`, `(wallet_id, event_time)`, `event_time`
 
-인덱스(예시)
-- `PRIMARY KEY (tx_id)`
-- `INDEX (related_id)`
-- `INDEX (wallet_id, event_time DESC)`
-- `INDEX (event_time DESC)`
-
-### 4.2 테이블: `bo.payment_orders`
-
-OLTP `payment_orders`를 서빙 관점으로 복제.
-
+2. `bo.payment_orders`
 - PK: `order_id`
-- 주요 컬럼(예시)
-  - `order_id` (string, PK)
-  - `user_id` (string, nullable, index)
-  - `merchant_name` (string, index)
-  - `amount` (decimal)
-  - `status` (string, index)
-  - `created_at` (timestamp, index)
-  - `updated_at` (timestamp, nullable, 권장)
+- 주요 컬럼: `user_id`, `merchant_name`, `amount`, `status`, `created_at`, `updated_at`, `source_version`, `ingested_at`
+- 인덱스: `user_id`, `merchant_name`, `status`, `created_at`
 
-### 4.3 테이블: `bo.payment_ledger_pairs` (권장: 성능/단순성)
+3. `bo.payment_ledger_pairs`
+- PK: `payment_order_id`
+- 주요 컬럼: `payment_tx_id`, `receive_tx_id`, `payer_wallet_id`, `payee_wallet_id`, `amount`, `status`, `event_time`, `updated_at`, `ingested_at`
+- 인덱스: `payment_tx_id`, `receive_tx_id`
 
-결제 오더(= `payment_orders.order_id`) 기준으로 PAYMENT/RECEIVE 페어링 결과를 저장해, Admin 조회 시 join 1~2번으로 끝나게 한다.
+## 5.2 운영 테이블
 
-- UK: `(payment_order_id)`
-- 주요 컬럼(예시)
-  - `payment_order_id` (string, unique)
-  - `payment_tx_id` (string, nullable, index)
-  - `receive_tx_id` (string, nullable, index)
-  - `payer_wallet_id` (string, nullable)
-  - `payee_wallet_id` (string, nullable)
-  - `amount` (decimal, nullable)
-  - `status` (string, nullable)  — `payment_orders.status`를 denormalize 가능
-  - `event_time` (timestamp, nullable) — 페어의 대표 시각(정의 필요)
-  - `updated_at` (timestamp)
+### As-Is (코드 구현)
 
-운영 규칙(권장)
-- 엔트리 도착 순서가 뒤바뀔 수 있으므로, pair row는 **부분적으로** 채워진 상태를 허용(둘 중 하나만 존재)
-- 일정 시간 내 페어 완성 실패 시 “pair_incomplete” 상태로 관측/알림(데이터 품질 지표)
+4. `bo.admin_audit_logs`
+- Identity PK: `audit_id`
+- 감사 필드 + `result_count`
 
-### 4.4 뷰(또는 테이블): `bo.admin_tx_search` (옵션)
+5. `bo.consumer_dlq_events`
+- Identity PK: `dlq_id`
+- DLQ triage 필드(`topic`, `partition`, `offset`, `key`, `payload`, `error`, `correlation_id`, `ingested_at`)
 
-`ledger_entries` + `payment_orders` + `payment_ledger_pairs`를 조인하여, Admin API가 바로 쓰기 좋은 형태로 제공.
+### Target (To-Be)
 
-- 키: `tx_id`
-- 포함 필드(예시)
-  - `tx_id`, `event_time`, `entry_type`, `amount`, `amount_signed`
-  - `related_id(payment_order_id)`
-  - `sender_wallet_id`, `receiver_wallet_id` (페어링 결과로 파생)
-  - `payment_status`, `merchant_name`
-  - `paired_tx_id`
+- 운영 쿼리 패턴 증가 시 materialized view 도입 검토
+
+### Out of Scope / Reserved
+
+- `bo.admin_tx_search` 물리 뷰/테이블은 현재 미구현(옵션)
 
 ---
 
-## 5) Admin API 설계(초안)
+## 6) 쿼리 경로 요약
 
-### 5.1 인증/권한(최소)
+### As-Is (코드 구현)
 
-- 사내 SSO(OIDC) 또는 JWT 기반 인증
-- Role 기반 접근 제어(RBAC): `ADMIN_READ`, `ADMIN_AUDIT` 등
-- 조회 요청(성공/404 포함)은 감사로그로 남긴다(누가/언제/어떤 키로 조회했는지)
-- 인증/인가 실패(401/403)는 라우트 진입 전 차단될 수 있으므로 인증 계층 로그로 추적한다
+- `fetch_admin_tx_context()`
+  - `LedgerEntry` 기준으로 `PaymentOrder`, `PaymentLedgerPair` outer join
+  - pair 불완전 시 반대 `entry_type` peer fallback 조회
 
-### 5.2 엔드포인트
+- `fetch_admin_order_context()`
+  - order 존재 여부 확인
+  - related ledger 목록 + pair row 조회
 
-#### (필수) `GET /admin/tx/{tx_id}`
+- `fetch_admin_wallet_tx()`
+  - wallet/time-range/limit 기반 목록 조회
 
-목적: FR-ADM-02 단건 조회.
+### Target (To-Be)
 
-응답(예시)
-```json
-{
-  "tx_id": "tx-001",
-  "event_time": "2026-02-04T03:12:45Z",
-  "entry_type": "PAYMENT",
-  "amount": "10000.00",
-  "amount_signed": "-10000.00",
-  "status": "SETTLED",
-  "status_group": "SUCCESS",
-  "sender_wallet_id": "A",
-  "receiver_wallet_id": "B",
-  "related": {
-    "related_id": "po-001",
-    "related_type": "PAYMENT_ORDER"
-  },
-  "paired_tx_id": "tx-002",
-  "merchant_name": "MERCHANT_1",
-  "pairing_status": "COMPLETE",
-  "data_lag_sec": 3
-}
-```
+- 조회 빈도/지연 분석 후 특정 경로 캐시 또는 뷰 최적화 검토
 
-동작 규칙(권장)
-- 먼저 `bo.ledger_entries(tx_id)` 조회
-- `related_id`가 있고 `related_type=PAYMENT_ORDER`이면:
-  - `bo.payment_ledger_pairs`에서 페어링 조회(있으면 사용)
-  - 없으면 `bo.ledger_entries`에서 같은 `related_id`를 가진 반대편 엔트리 탐색(백업 경로)
+### Out of Scope / Reserved
 
-응답 정책(결정)
-- `tx_id` 미존재: **404**
-- 페어링 불완전: **200 + `pairing_status=INCOMPLETE`**, `paired_tx_id`/`receiver_wallet_id`는 NULL 허용
-- `related_id` 자체가 없으면: `pairing_status=UNKNOWN`
-- `status`는 **원문값 유지**, `status_group`는 v1 매핑표로 계산하고 매핑이 없으면 `UNKNOWN` — 결정: `DEC-206` (`.specs/decision_open_items.md`)
-- `data_lag_sec`는 `now - max(ingested_at, event_time)`로 계산(가용한 값 기준)
-
-#### (권장) `GET /admin/payment-orders/{order_id}`
-
-목적: 결제 오더 기준으로 원장 페어링/상태를 한 번에 조회(운영 편의).
-
-#### (권장) `GET /admin/wallets/{wallet_id}/tx?from=&to=&limit=`
-
-목적: 특정 지갑의 최근 거래 리스트(지원 여부는 운영 요구에 따라).
-
-### 5.3 성능/SLO(초안)
-
-- `GET /admin/tx/{tx_id}`: p95 200ms(내부망), p99 500ms 목표(조정 가능)
-- 데이터 최신성: OLTP 커밋 이후 Backoffice 반영까지 p95 5초(이벤트 파이프라인 SLO)
+- OLTP 직접 조회 fallback 경로
 
 ---
 
-## 6) 데이터 동기화/멱등성
+## 7) 테스트 기준 (계약 검증)
 
-### 6.1 Upsert 키
+### As-Is (코드 구현)
 
-- `bo.ledger_entries`: `tx_id` 기반 upsert
-- `bo.payment_orders`: `order_id` 기반 upsert
-- `bo.payment_ledger_pairs`: `payment_order_id` 기반 upsert
+핵심 계약은 아래 테스트로 회귀 검증한다.
 
-### 6.2 중복/순서 뒤바뀜 대응
+- API 라우팅/상태코드/감사: `tests/unit/test_api_routes.py`
+- 응답 계산(페어링/status_group): `tests/unit/test_api_service.py`
+- DB 조회/감사 영속성: `tests/integration/test_admin_tx_integration.py`
+- E2E 흐름: `tests/e2e/test_admin_tx_e2e.py`
 
-- 동일 이벤트 재전송(At-least-once)을 허용하고, DB upsert로 수렴시킨다.
-- 페어링은 “부분 완성”을 허용하고, 두 엔트리 도착 시 최종 완성한다.
+### Target (To-Be)
 
----
+- 운영형 트래픽 패턴 기반 성능 회귀 케이스 추가
 
-## 7) 운영 지표(Serving Layer 자체)
+### Out of Scope / Reserved
 
-Serving 계층도 관측이 필요하다(데이터브릭스 통제 지표와 별개).
+- 장기 보관성/규제 감사 적합성 검증 자체
 
-- API: QPS, p95/p99 latency, error rate
-- DB: connection pool, slow query, replication lag
-- 동기화: consumer lag, event 처리 지연
-- 페어링 품질: pair_incomplete 비율, 평균 완성 시간
-
----
-
-## 8) 오픈 이슈(결정 필요하지만 개발은 진행 가능)
-
-- `status`의 SSOT와 상태 전이 시각(`updated_at/settled_at/failed_at`) 표준화
-- `amount_signed`의 SSOT(업스트림 저장 vs 룰 기반 파생) 및 unknown type 처리
-- `related_id`가 여러 도메인을 가리킬 경우 `related_type` 제공 여부
-- 환불/취소/정정(역분개) 엔트리 타입 정의 및 페어링 규칙 확장
-
----
-
-## 9) 클라우드 개발 단계(테스트 -> 운영형)
-
-### 9.1 Cloud-Test 단계(폐기형)
-
-- 목적: FR-ADM-02 조회 경로(API -> Backoffice DB -> Consumer)를 빠르게 연결 검증
-- 환경: 퍼블릭 엔드포인트 허용, Event Hubs(Kafka) + Container Apps
-- 검증: synthetic 이벤트로 `publish -> consume -> upsert -> API(200/404)` 스모크 확인
-
-### 9.2 Cloud-Secure 단계(운영형)
-
-- 목적: 보안 네트워크/권한 정책이 적용된 최종 아키텍처에서 동일 기능 재검증
-- 환경: 보안용 별도 리소스(인플레이스 전환 금지), Key Vault + Managed Identity
-- 검증: 마이그레이션/백필/증분 동기화 재실행 후 동일 스모크 재확인
-
-### 9.3 전환 원칙
-
-- 테스트 리소스와 운영형 리소스는 분리 생성하고, 검증 완료 후 컷오버한다.
-- Backoffice DB는 파생 저장소이므로 전환 시 재적재(backfill + sync)를 기본 경로로 한다.

@@ -1,332 +1,315 @@
-# Backoffice Data Project (Sync) 스펙 초안 (v0.1)
+# Backoffice Data Project Specs (Sync Consumer, Code-Aligned Hybrid)
 
-> **목적**: OLTP에서 생성/변경되는 `payment_orders`, `transaction_ledger`를 **초 단위**로 Backoffice DB(Serving DB)에 동기화하여 Admin API(FR-ADM-02)가 안정적으로 조회할 수 있게 한다.
+작성 기준일: 2026-02-25  
+기준 브랜치: `dev` (현재 워킹트리 코드)
+
+> 이 문서는 OLTP 이벤트를 Backoffice DB로 동기화하는 Consumer 계약의 SSOT다.
 >
-> **연계 문서**
-> - Backoffice DB + Admin API: `.specs/backoffice_db_admin_api.md`
-> - 아키텍처 참고(비범위/보조 경로): `.specs/reference/entire_architecture.md`
+> 연계 문서
+> - 상위 정책: `.specs/backoffice_project_specs.md`
+> - API/DB 상세: `.specs/backoffice_db_admin_api.md`
 
 ---
 
-## 1) 범위
+## 0) 문서 운영 원칙 (Hybrid)
 
-### 1.1 In-scope
-
-- OLTP → Backoffice DB **증분 동기화**
-  - `transaction_ledger` 엔트리(원장 엔트리/행)
-  - `payment_orders` 결제 오더
-- 멱등 upsert / 재처리 / backfill(초기 적재)
-- 동기화 지연/누락/중복에 대한 관측 지표 및 알림
-
-### 1.2 Out-of-scope
-
-- 결제/정산 트랜잭션 처리(Freeze/Settle/Rollback)
-- Admin API 자체(별도 스펙에서 다룸)
+1. **As-Is (코드 구현)**: 현재 코드로 즉시 검증 가능한 동작
+2. **Target (To-Be)**: 향후 도입/승격 목표
+3. **Out of Scope / Reserved**: 현재 범위 밖 또는 예약 기능
 
 ---
 
-## 2) 도메인 가정(현재 스키마 기반, 협의 전 “기본값”)
+## 1) 범위 및 책임 경계
 
-### 2.1 tx_id / 페어링(방법 2)
+### As-Is (코드 구현)
 
-- `transaction_ledger.tx_id`는 PK → **원장 엔트리(행) ID**
-- 결제 1건의 더블엔트리(PAYMENT/RECEIVE)는 **서로 다른 tx_id**, 동일 `related_id`로 연결
-  - 권장: `related_id = payment_orders.order_id`
+- 이벤트 소비: Kafka/Event Hubs 토픽 consume
+- 정규화/검증: topic profile + alias/core_required 정책
+- DB 반영: 멱등 upsert(`ledger_entries`, `payment_orders`, `payment_ledger_pairs`)
+- 운영 기능: DLQ 저장(file/db), backfill(JSONL), freshness/lag/계약지표 관측
 
-### 2.2 amount_signed
+### Target (To-Be)
 
-- 목표: Serving DB에 `amount_signed`를 **가능하면 저장**
-  - 업스트림이 제공하면 SSOT로 저장
-  - 미제공 시 `NULL`로 저장(Consumer 파생은 운영 합의 후 고려) — 결정: `DEC-204` (`.specs/decision_open_items.md`)
+- 보안형 Cloud-Secure 운영 승격(E2) 및 운영 자동화(E3) 강화
 
----
+### Out of Scope / Reserved
 
-## 3) 데이터 동기화 방식(선택지)
-
-### 옵션 A) 서비스 이벤트 → Kafka(권장)
-
-- 서비스가 OLTP 커밋 성공 후 이벤트 발행
-- Consumer가 Backoffice DB에 upsert
-
-장점: 초저지연, 구현 단순(SSOT는 서비스)  
-단점: 이벤트 스키마/발행 보장(트랜잭션 아웃박스 등) 필요
-
-### 옵션 B) OLTP CDC → Kafka(Debezium 등)
-
-- OLTP 변경 로그 기반으로 테이블 변경을 이벤트화
-- Consumer가 Backoffice DB에 upsert
-
-장점: 서비스 변경 최소화  
-단점: CDC 운영 복잡도(스키마 변경/DDL 처리) 증가
-
-### 옵션 C) 폴링/배치(비권장: “초 단위” 요구와 충돌)
-
-**결정(현 시점)**  
-- 동기화 방식: **옵션 A) 서비스 이벤트**
-- 토픽 전략: **기존 Kafka 토픽 “얹어가기” 우선**, 필드 부족 시 이벤트 스펙 보강/신규 토픽 합의
+- producer(이벤트 발행) 구현
+- 카프카/모니터링 인프라 프로비저닝
+- 결제 원천 도메인 상태전이 로직
 
 ---
 
-## 4) 이벤트/레코드 모델(권장)
+## 2) 이벤트 계약: profile 기반 topic 매핑
 
-> 이벤트는 **At-least-once**를 전제로 하고, Consumer는 **멱등 upsert**로 수렴시킨다.
+## 2.1 프로파일/토픽 선택 규칙
 
-### 4.1 `LedgerEntryUpserted`
+### As-Is (코드 구현)
 
-- key: `tx_id`
-- payload(예시)
-  - `tx_id`, `wallet_id`, `entry_type`, `amount`, `amount_signed?`
-  - `related_id?`, `related_type?`
-  - `event_time`, `source_created_at`
-  - `occurred_at`(이벤트 발행 시각), `schema_version`
+환경변수
+- `EVENT_PROFILE_ID` (기본: `canonical-v1`)
+- `LEDGER_TOPIC`, `PAYMENT_ORDER_TOPIC` (선택 override)
 
-### 4.2 `PaymentOrderUpserted`
+우선순위
+- 키별 `env override > profile topics > default`
+- 두 effective topic이 동일하면 프로세스 시작 시 fail-fast
 
-- key: `order_id`
-- payload(예시)
-  - `order_id`, `user_id?`, `merchant_name?`, `amount`, `status`
-  - `created_at`, `updated_at?`
-  - `occurred_at`, `schema_version`
+기본 프로파일 매핑
 
-### 4.3 (선택) `PaymentLedgerPaired`
+| profile_id | ledger topic | payment_order topic |
+|---|---|---|
+| `canonical-v1` | `ledger.entry.upserted` | `payment.order.upserted` |
+| `nsc-dev-v1` | `cdc-events` | `order-events` |
 
-> 페어링을 서비스에서 확정해 줄 수 있으면(정확도/단순성↑) 이벤트로 주는 편이 가장 좋다.
+소스: `configs/event_profiles.yaml`
 
-- key: `payment_order_id`
-- payload: `payment_tx_id`, `receive_tx_id`, `payer_wallet_id`, `payee_wallet_id`, `amount`, `status`, `updated_at`
+## 2.2 alias / core_required
 
-### 4.4 통합 테스트용 “필수 토픽/필드” 체크리스트
+### As-Is (코드 구현)
 
-> **목적**: "얹어가기(기존 Kafka 토픽 consume)"가 가능한지 빠르게 판단하고,
-> 통합 테스트 시 최소 메시지 요건을 팀에 요청하기 위함.
->
-> **이벤트 발행 책임**: 이벤트 발행(프로듀서 코드)은 업스트림 서비스가 담당한다(DEC-112).
-> 이 체크리스트는 업스트림 팀에 전달하는 이벤트 계약이다.
-> 상세: `configs/topic_checklist.md`
+Alias
 
-**필수 토픽(2개)**
+| canonical | alias |
+|---|---|
+| `entry_type` | `type` |
+| `event_time` | `source_created_at`, `created_at` |
+| `version` | `source_version` |
 
-1) **원장 엔트리 토픽** (예: `ledger.entry.upserted`)
-- 목적: `bo.ledger_entries` upsert
-- **필수 필드**
-  - `tx_id` (PK)
-  - `wallet_id`
-  - `entry_type` (PAYMENT/RECEIVE 등)
-  - `amount`
-  - `related_id` (권장: `payment_orders.order_id`)
-  - `event_time` 또는 `source_created_at`
-  - `updated_at` 또는 `version` (**최신판 판단용**)
-- **선택 필드**
-  - `amount_signed` (있으면 저장, 없으면 파생)
-  - `related_type`, `schema_version`, `occurred_at`
+Core required
 
-2) **결제 오더 토픽** (예: `payment.order.upserted`)
-- 목적: `bo.payment_orders` upsert
-- **필수 필드**
-  - `order_id` (PK)
-  - `amount`
-  - `status`
-  - `created_at`
-  - `updated_at` 또는 `version` (**최신판 판단용**)
-- **선택 필드**
-  - `user_id`, `merchant_name`
-  - `schema_version`, `occurred_at`
+- ledger: `tx_id`, `wallet_id`, `entry_type`, `amount`, `event_time_or_alias`
+- payment_order: `order_id`, `amount`, `status`, `created_at`
 
-**선택 토픽(1개)**
+정규화 규칙
+- alias 후보 중 non-empty 첫 값을 채택
+- alias 그룹에서 상이한 non-empty 값 충돌 시 `contract_core_violation`
+- core required 누락 시 parse 계열 오류로 처리
 
-3) **페어링 확정 토픽** (예: `payment.ledger.paired`)
-- 목적: `bo.payment_ledger_pairs`를 서비스 기준으로 확정/가속
-- **필수 필드**
-  - `payment_order_id`
-  - `payment_tx_id`, `receive_tx_id`
-  - `payer_wallet_id`, `payee_wallet_id`
-  - `amount`, `updated_at`
+### Target (To-Be)
 
-> **통합 테스트 요청 시 체크**  
-> - 샘플 메시지 1~2건(정상/실패 케이스)  
-> - out-of-order(늦게 온 이벤트) 케이스 1건  
-> - 중복 메시지 재전송 케이스 1건
+- profile별 별도 성숙도 임계치 운영 자동화
+
+### Out of Scope / Reserved
+
+- 런타임 hot-reload 기반 프로파일 교체
 
 ---
 
-## 5) Consumer(동기화 서비스) 설계
+## 3) 이벤트 모델 파싱 규칙
 
-### 5.1 책임
+### As-Is (코드 구현)
 
-- Kafka(또는 CDC)에서 이벤트 consume
-- Backoffice DB에 upsert
-- DLQ(Dead Letter Queue)로 실패 이벤트 격리
-- 처리 지연/오류율/레코드 커버리지 관측
+### 3.1 Ledger (`LedgerEntryUpserted`)
 
-### 5.2 멱등/버전 처리
+- 필수: `tx_id`, `wallet_id`, `entry_type(or type)`, `amount`, `event_time(or alias)`
+- 시간 필드
+  - `event_time = event_time || source_created_at || created_at`
+  - `created_at = source_created_at || created_at || event_time`
+- 버전 필드
+  - `source_version = version || source_version`
+  - `updated_at`는 optional
+- `amount_signed` 미제공 시 `NULL`
 
-필수 정책 중 하나를 선택:
+### 3.2 Payment Order (`PaymentOrderUpserted`)
 
-1) **단순 upsert + “최신 이벤트만 적용”**  
-   - 이벤트에 `updated_at` 또는 `version` 필드 필요
-2) **단순 upsert + 마지막 write wins**  
-   - out-of-order 이벤트에서 역전 가능(권장하지 않음)
+- 필수: `order_id`, `amount`, `status`, `created_at`
+- `updated_at`/`source_version` optional
 
-> `payment_orders.updated_at` 컬럼은 존재한다. 다만 초 단위 운영 안정성을 위해 업스트림 이벤트에서 `updated_at` 또는 `version` 제공률을 보장하는 방식을 권장한다.
-> F3-1 기준(DEC-230): topic(`ledger`, `payment_order`)별 `updated_at` 또는 `version` 제공률은 7일 롤링 `>=99%`를 유지한다.
+### Target (To-Be)
 
-### 5.3 페어링 처리(방법 2 가정)
+- 이벤트 스키마 버전별 강제 검증 레이어 추가
 
-페어링을 Backoffice DB에서 계산하는 경우:
+### Out of Scope / Reserved
 
-- 입력: `bo.ledger_entries`의 `related_id`
-- 규칙(예시)
-  - `related_id` 그룹 내 `PAYMENT` 1개 + `RECEIVE` 1개가 존재하면 페어 완성
-  - 둘 중 하나가 없으면 “부분 완성” 상태 유지
-- 산출: `bo.payment_ledger_pairs` upsert
-
-### 5.4 구현 방식(결정)
-
-- **커스텀 Consumer 서비스(Python)**로 구현
-  - 이유: 페어링 로직/멱등 처리/오류 격리(DLQ) 등 **업무 로직**이 필요함
-  - Kafka Connect는 단순 sink에는 유리하지만, **도메인 로직/지표 산출**에 한계
-
-### 5.5 운영 복잡도 증가 포인트 & 가드레일
-
-**복잡도 증가 포인트**
-- 오프셋/재처리/재시도(backoff) 정책을 직접 운영
-- 중복/역순(out-of-order) 이벤트에 대한 멱등 처리
-- 스키마 변경/버저닝 대응
-- consumer lag, freshness, DLQ 등 운영 지표 모니터링
-
-**가드레일(최소)**
-- `updated_at` 또는 `version` 기준 “최신 이벤트만 적용”
-- DLQ + 재처리(runbook) 정의
-- 이벤트 스키마 버전 관리 + 샘플 메시지 계약 테스트
-- 핵심 지표 알림: lag / freshness / error rate
-
-### 5.6 기본 동작(자체 결정)
-
-- DB upsert는 **키 기준 멱등**으로 처리(`tx_id`, `order_id`)
-- `updated_at/version`이 **없을 경우**:
-  - **ingested_at 기준 last-write-wins**로 수렴
-  - `version_missing_cnt`(메트릭)로 관측하고 경보 기준에 포함
-- 모든 레코드에 `ingested_at` 기록(운영 신선도 계산용)
+- 삭제(tombstone) 이벤트 처리
 
 ---
 
-## 6) Backoffice DB(Serving DB) 모델(요약)
+## 4) Consumer 처리 파이프라인
 
-상세는 `.specs/backoffice_db_admin_api.md` 참고.
+### As-Is (코드 구현)
 
-- `bo.ledger_entries` (PK: `tx_id`)
-- `bo.payment_orders` (PK: `order_id`)
-- `bo.payment_ledger_pairs` (UK: `payment_order_id`) — 권장
+처리 순서(consume/backfill 공통 핵심)
 
----
+1. topic 수신 및 payload(JSON object) 파싱
+2. correlation id 추출(headers 우선, payload fallback)
+3. `normalize_payload_for_topic()`으로 alias 정규화 + core_required 검증
+4. topic kind별 이벤트 객체 파싱(`LedgerEntryUpserted` 또는 `PaymentOrderUpserted`)
+5. DB upsert 실행 + pairing 업데이트(조건부)
+6. 메트릭 기록(`messages`, `lag`, `freshness`, `version_missing`, `contract_*`)
+7. 결과 반영
+   - consume 경로: 성공 시 commit, 실패 시 DLQ 기록 후 commit(포이즌 메시지 무한 재시도 방지)
+   - backfill 경로: Kafka offset commit 없음(JSONL 입력 단위 처리)
 
-## 7) 운영 지표(필수)
+오류 분류 코드
+- `contract_core_violation`
+- `unsupported_topic`
+- `parse_error`
+- `internal_error`
 
-### 7.1 동기화/지연
+### Target (To-Be)
 
-- consumer lag(토픽/파티션)
-- end-to-end freshness: `now - max(occurred_at)` / `now - max(event_time)` (본 프로젝트 기준: ledger=`event_time`, order=`updated_at||created_at`) — 결정: `DEC-205` (`.specs/decision_open_items.md`)
-- 처리량(QPS), error rate, DLQ rate
+- 장애 유형별 재처리 우선순위 자동 분류
 
-### 7.2 데이터 커버리지/품질
+### Out of Scope / Reserved
 
-- `ledger_entries` upsert 성공률
-- `payment_orders` upsert 성공률
-- `related_id` null rate
-- `metadata_coverage_ratio(topic) = 1 - (delta(consumer_version_missing_total{topic}[7d]) / delta(consumer_messages_total{topic,status="success"}[7d])) >= 0.99` — 결정: `DEC-230`
-- `core_violation_rate = delta(consumer_contract_core_violation_total[7d]) / delta(consumer_messages_total{status="success"}[7d]) <= 0.001` (0.1%) — 결정: `DEC-231`
-- `alias_hit_ratio = delta(consumer_contract_alias_hit_total[7d]) / delta(consumer_contract_profile_messages_total[7d]) <= 0.40` (40%) — 결정: `DEC-231`
-- `version_missing_ratio = delta(consumer_version_missing_total[7d]) / delta(consumer_messages_total{status="success"}[7d]) <= 0.05` (5%) — 결정: `DEC-231`
-- 페어링 품질
-  - pair complete rate
-  - pair incomplete age(p95)
-
-### 7.3 F3-2 알림 운영 기준(Dev)
-
-- Azure Monitor 이식 쿼리 기준은 `AppMetrics` 테이블로 고정한다 — 결정: `DEC-232`
-- severity 기본 분포는 `DEC-202`를 유지한다(`DataFreshnessHigh`, `DbReplicationLagHigh`만 `critical`) — 결정: `DEC-233`
-- 임계치/윈도우 튜닝은 3일 관측 증빙 후 근거 기반으로만 수행한다 — 결정: `DEC-233`
-- Action Group 채널(email/Teams/webhook) 값은 플랫폼팀 관리, 서비스 저장소는 `ACTION_GROUP_ID` 인터페이스만 관리한다 — 결정: `DEC-234`
-- 운영 절차/증빙 포맷 SSOT: `docs/ops/f3_2_slo_alerts_runbook.md`
+- Exactly-once 전송 보장
 
 ---
 
-## 8) 보안/컴플라이언스(최소)
+## 5) 멱등성 / LWW 정책
 
-- Backoffice DB 접근은 Admin API/Consumer만 허용(네트워크+계정 분리)
-- 민감 필드 최소화(필요시 `user_id`는 해시/가명 처리 옵션)
-- 감사로그: Admin API 조회 + 운영자 접근(SSH/DB) 이력 관리
+### As-Is (코드 구현)
 
----
+Upsert 키
+- `ledger_entries`: `tx_id`
+- `payment_orders`: `order_id`
+- `payment_ledger_pairs`: `payment_order_id`
 
-## 9) 단계별 구현 계획(개정)
+LWW 우선순위
+1. `incoming.updated_at`가 있으면 `existing.updated_at`과 비교해 최신값 반영
+2. `incoming.updated_at`가 없고 `incoming.source_version`이 있으면 version 비교
+3. 둘 다 없을 때만 `ingested_at` 비교 fallback
+   - 단, fallback은 **incoming/existing 모두 metadata(`updated_at`, `source_version`) 부재**일 때만 허용
 
-### 9.1 기능 구현 단계
+효과
+- metadata 있는 기존 레코드를 metadata 없는 이벤트가 덮어쓰지 못한다.
 
-1) **초기 적재(backfill)**: 최근 N일 `payment_orders`, `transaction_ledger` 덤프 → Backoffice DB 적재
-2) **증분 동기화**: Kafka 이벤트 or CDC 도입, 멱등 upsert
-3) **페어링 테이블 도입**: `bo.payment_ledger_pairs` + 지표/알림
-4) **SLO 강화**: out-of-order/중복/재처리 정책 확정, 회복 자동화
+메타데이터 누락 관측
+- `updated_at`와 `source_version` 둘 다 없으면 `consumer_version_missing_total` 증가
 
-### 9.2 클라우드 승격 단계
+### Target (To-Be)
 
-1) **Cloud-Test(폐기형)**: 퍼블릭 허용 테스트 리소스에서 synthetic 이벤트로 E2E 검증
-2) **Cloud-Secure(운영형)**: 보안 네트워크/권한 정책 적용 리소스에서 동일 파이프라인 재검증
-3) **승격 게이트**: Cloud-Test 검증 통과 후에만 Cloud-Secure 반영
+- 업스트림 메타데이터 제공률 SLA 강화
 
----
+### Out of Scope / Reserved
 
-## 10) 개발 환경/배포 전략(초안)
-
-> 본 문서는 “동기화(Consumer)” 관점의 개발/운영 전략을 요약한다.  
-> Serving 전체 관점은 `.specs/backoffice_project_specs.md`를 따른다.
-
-### 10.1 로컬 개발(Local)
-
-- 의존성
-  - Backoffice DB(PostgreSQL) 컨테이너
-  - Kafka 호환 브로커 컨테이너(권장) 또는 로컬 mock(선택)
-- 개발 흐름(예시)
-  1) `docker compose up`으로 DB/브로커 기동
-  2) backfill 모드로 초기 적재 실행(최근 N일)
-  3) 이벤트 publish → upsert 동작 확인
-  4) 실패 이벤트는 DLQ로 격리되는지 확인
-- 로컬 검증 체크리스트
-  - 멱등 upsert: 동일 이벤트 재처리 시 결과 수렴
-  - out-of-order: 늦게 온 이벤트가 “상태 역전”을 유발하지 않는지(버전/updated_at 필요)
-  - 페어링: `related_id` 기준으로 pair가 완성/부분완성 되는지
-
-### 10.2 Azure 배포(권장 레퍼런스)
-
-- **Cloud-Test 프로파일**
-  - 이벤트: Event Hubs(Kafka endpoint), 개인 분리 namespace
-  - 실행: Azure Container Apps
-    - consumer는 **min replicas 1 / max replicas 1** 권장
-  - 시크릿: SAS/env 주입 우선
-  - 관측: 최소 lag/DLQ/freshness 확인
-- **Cloud-Secure 프로파일**
-  - 이벤트: 보안 정책 적용 Event Hubs/Kafka
-  - 실행: Container Apps 또는 AKS(조직 표준)
-  - 시크릿: Key Vault + Managed Identity
-  - 네트워크: Private Endpoint/VNet/Firewall 적용
-  - 관측: 운영 알림 임계치까지 확정
-
-### 10.3 릴리즈/재처리
-
-- 배포는 rolling을 기본으로 하되, “이중 소비(중복)”는 멱등 upsert로 흡수한다.
-- 장애/배포 실패 시:
-  - 컨슈머는 재기동 시에도 동일 offset부터 재처리되므로, 멱등성이 깨지지 않게 설계한다.
-  - DLQ replay(선택)로 복구 경로를 제공한다.
+- 비관적 락 기반 순서 보장 처리
 
 ---
 
-## 11) 오픈 이슈(협의 필요)
+## 6) Pairing 정책
 
-> F3-1 관련 항목(status 표준, `updated_at/version` 제공률, 계약 성숙도 기준)은
-> `DEC-229`, `DEC-230`, `DEC-231`로 결정 완료.
-> F3-2 알림 운영 적용 기준(AppMetrics, 3일 튜닝, Action Group 인터페이스)은
-> `DEC-232`, `DEC-233`, `DEC-234`로 결정 완료.
+### As-Is (코드 구현)
 
-- `amount_signed`의 SSOT(업스트림 제공 vs 룰 파생)
-- `related_id`가 비는 케이스/여러 도메인을 참조하는 케이스(`related_type` 필요 여부)
-- 환불/취소/정정(역분개) 이벤트 타입/페어링 확장 규칙
+트리거 조건
+- ledger 이벤트에서 `related_id`가 있고 `related_type in {None, PAYMENT_ORDER}`일 때만 pairing 계산
+- 그 외 `related_type`은 pairing 스킵(`pairing_skipped_non_payment_order_total`)
+
+계산 규칙
+- 같은 `related_id` 그룹에서 `PAYMENT`와 `RECEIVE`를 찾아 pair snapshot 계산
+- complete: PAYMENT/RECEIVE 모두 존재
+- incomplete: 한쪽만 존재
+
+회귀 방지
+- 기존 pair가 complete면 새로운 incomplete 결과로 downgrade하지 않는다.
+
+저장소
+- `bo.payment_ledger_pairs` upsert
+
+### Target (To-Be)
+
+- reversal/refund 타입 포함 다중 pair 정책 확장
+
+### Out of Scope / Reserved
+
+- `related_type` 전 도메인 공통 pairing 단일화
+
+---
+
+## 7) DLQ / 재처리 정책
+
+### As-Is (코드 구현)
+
+DLQ 백엔드
+- `DLQ_BACKEND=file` (기본: local/dev)
+- `DLQ_BACKEND=db` (기본: prod)
+
+저장 대상
+- topic/partition/offset/key/payload/error/correlation_id/ingested_at
+
+보관
+- DB backend 사용 시 `DLQ_RETENTION_DAYS` 기준 prune 수행
+
+재처리
+- 실시간 consume 외에 `backfill` 명령(JSONL 입력)으로 재적재 가능
+- `--since/--until`로 시간 범위 제한 가능
+
+### Target (To-Be)
+
+- 운영형 DLQ replay 자동화 및 승인 게이트 통합
+
+### Out of Scope / Reserved
+
+- DLQ 전용 별도 큐 인프라 내장
+
+---
+
+## 8) 관측성 계약
+
+### As-Is (코드 구현)
+
+Consumer 핵심 지표
+- 처리량/결과: `consumer_messages_total`
+- 지연: `consumer_event_lag_seconds`, `consumer_kafka_lag`
+- 신선도: `consumer_freshness_seconds`
+- 실패: `consumer_dlq_total`
+- 계약 성숙도: `consumer_contract_alias_hit_total`, `consumer_contract_core_violation_total`, `consumer_contract_profile_messages_total`
+- 메타데이터 누락: `consumer_version_missing_total`
+- 페어링 품질: `pairing_total`, `pairing_incomplete_total`, `pairing_incomplete_age_seconds`, `pairing_skipped_non_payment_order_total`
+
+Freshness 기준 시각
+- ledger: `event_time`
+- payment_order: `updated_at || created_at`
+
+### Target (To-Be)
+
+- 운영 대시보드/알림 튜닝 자동화
+
+### Out of Scope / Reserved
+
+- 장기 시계열 분석 파이프라인 자체 구축
+
+---
+
+## 9) 운영 단계 정렬 (프로젝트 스펙과 동일 용어)
+
+### As-Is (코드 구현)
+
+- F축: F1/F2 기능 구현 완료, F3 품질/운영 게이트 진행
+- E축: E1 검증 이력 존재, E2 진행, E3 예정
+
+> 단계별 상세 상태/증빙은 `.roadmap/implementation_roadmap.md`를 따른다.
+
+### Target (To-Be)
+
+- E2 완료 후 Cloud-Secure 운영 표준 고정, E3 자동화 완성
+
+### Out of Scope / Reserved
+
+- 단계별 상세 일정 관리
+
+---
+
+## 10) Reserved Topic 명시
+
+### As-Is (코드 구현)
+
+- `PaymentLedgerPaired` 토픽은 현재 consumer에서 직접 consume하지 않는다.
+- 현재 pair 테이블은 ledger/payment_order 이벤트 기반 계산으로 채운다.
+
+### Target (To-Be)
+
+- 업스트림에서 `PaymentLedgerPaired`를 안정적으로 제공하면 보조 입력으로 도입 검토
+
+### Out of Scope / Reserved
+
+- 현 단계에서 `PaymentLedgerPaired` 기반 단일 진실 경로 전환
+
+---
+
+## 11) Open Issues (실제 미결)
+
+1. `related_type` 다중 도메인 확장 시 pair 저장 모델 분리 여부
+2. reversal/refund 이벤트를 포함한 pairing 일반화 규칙
+3. `PaymentLedgerPaired` 도입 시 기존 계산 경로와의 충돌/우선순위 정책
